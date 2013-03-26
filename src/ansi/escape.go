@@ -2,7 +2,6 @@ package ansi
 
 import (
 	"strconv"
-	"strings"
 )
 
 type EscapeSequence struct {
@@ -13,12 +12,43 @@ type EscapeSequence struct {
 	Mode         rune
 }
 
+func (e *EscapeSequence) Reset() {
+	e.IsCSI = false
+
+	if e.PrivateModes == nil {
+		e.PrivateModes = make([]rune, 0, 4)
+	} else {
+		e.PrivateModes = e.PrivateModes[0:0]
+	}
+
+	if e.Nums == nil {
+		e.Nums = make([]int, 0, 4)
+	} else {
+		e.Nums = e.Nums[0:0]
+	}
+
+	if e.Trailings == nil {
+		e.Trailings = make([]rune, 0, 4)
+	} else {
+		e.Trailings = e.Trailings[0:0]
+	}
+
+	e.Mode = 0
+}
+
 func (e *EscapeSequence) ParseNumbers(buf []rune) {
-	for _, part := range strings.Split(string(buf), ";") {
-		num, err := strconv.Atoi(part)
-		if err != nil {
-			continue // be nice
+	part := make([]rune, 0, 4)
+	for i, r := range buf {
+		if r != ';' {
+			part = append(part, r)
 		}
-		e.Nums = append(e.Nums, num)
+		if r == ';' || i == len(buf)-1 {
+			num, err := strconv.Atoi(string(part))
+			if err != nil {
+				continue // be nice
+			}
+			e.Nums = append(e.Nums, num)
+			part = part[0:0]
+		}
 	}
 }

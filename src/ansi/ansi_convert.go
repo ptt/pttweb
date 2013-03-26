@@ -38,7 +38,7 @@ type Ansi2Html struct {
 func (a *Ansi2Html) ConvertFromUTF8(input []byte) error {
 	s := Default
 	buf := make([]rune, 0, 16)
-	var esc *EscapeSequence
+	var esc EscapeSequence
 
 	a.isLineStart = true
 
@@ -53,8 +53,8 @@ func (a *Ansi2Html) ConvertFromUTF8(input []byte) error {
 			switch r {
 			case 033:
 				s = Escaping
-				buf = make([]rune, 0, 16)
-				esc = &EscapeSequence{}
+				buf = buf[0:0]
+				esc.Reset()
 			default:
 				if a.isLineStart {
 					if matchPrefixBytesToStrings(input[i:], quotePrefixes()) {
@@ -99,7 +99,7 @@ func (a *Ansi2Html) ConvertFromUTF8(input []byte) error {
 			case r >= '@' && r <= '~':
 				esc.Mode = r
 				esc.ParseNumbers(buf)
-				if err := a.applyEscSeq(esc); err != nil {
+				if err := a.applyEscSeq(&esc); err != nil {
 					return err
 				}
 				s = Default
