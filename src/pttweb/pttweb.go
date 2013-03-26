@@ -7,8 +7,11 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"os/signal"
 	"path/filepath"
 	"pttbbs"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"text/template"
@@ -21,15 +24,30 @@ var tmpl *template.Template
 var bindAddress string
 var boarddAddress string
 var templateDir string
+var cpuProfile string
+var memProfile string
 
 func init() {
 	flag.StringVar(&bindAddress, "bind", "127.0.0.1:8891", "bind address of the server (host:port)")
 	flag.StringVar(&boarddAddress, "boardd", "", "boardd address (host:port)")
 	flag.StringVar(&templateDir, "tmpldir", "templates", "template directory, loads all *.html")
+	flag.StringVar(&cpuProfile, "cpuprofile", "", "write cpu profile to file")
+	flag.StringVar(&memProfile, "memprofile", "", "write memory profile to this file")
 }
 
 func main() {
 	flag.Parse()
+
+	// CPU Profiling
+	if cpuProfile != "" {
+		f, err := os.Create(cpuProfile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
 
 	// Init RemotePtt
 	if boarddAddress == "" {
@@ -48,8 +66,24 @@ func main() {
 	router = createRouter()
 	http.Handle("/", router)
 
-	if err := http.ListenAndServe(bindAddress, nil); err != nil {
-		log.Fatal("ListenAndServe: ", err)
+	go func() {
+		if err := http.ListenAndServe(bindAddress, nil); err != nil {
+			log.Fatal("ListenAndServe: ", err)
+			os.Exit(1)
+		}
+	}()
+
+	progExit := make(chan os.Signal)
+	signal.Notify(progExit, os.Interrupt)
+	<-progExit
+
+	if memProfile != "" {
+		f, err := os.Create(memProfile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.WriteHeapProfile(f)
+		f.Close()
 	}
 }
 
