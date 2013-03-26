@@ -104,7 +104,7 @@ func fastWriteHtmlEscapedRune(buf *bytes.Buffer, ru rune) {
 
 func (r *ArticleRenderer) oneRune(ru rune) {
 	at := r.lineBuf.Len()
-	if at >= cap(r.indexArr) {
+	for at >= cap(r.indexArr) {
 		newArr := make([]int, 2*cap(r.indexArr), 2*cap(r.indexArr))
 		copy(newArr, r.indexArr)
 		r.indexArr = newArr
