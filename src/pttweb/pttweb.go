@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"pttbbs"
+	"pttweb/article"
 	"runtime/pprof"
 	"strconv"
 	"strings"
@@ -263,7 +264,7 @@ func handleArticle(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	// Render content
-	ar := NewArticleRenderer()
+	ar := article.NewRenderer()
 	buf, err := ar.Render(content)
 	if err != nil {
 		return err
