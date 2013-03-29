@@ -152,6 +152,17 @@ func (r *Renderer) endOfLine() {
 		}
 	}
 
+	// Detect push line
+	isPush := false
+	if matchPushLine(r.lineSegs) {
+		r.lineSegs[0].ExtraFlags |= PushTag
+		r.lineSegs[1].ExtraFlags |= PushUserId
+		r.lineSegs[2].ExtraFlags |= PushContent
+		r.lineSegs[3].ExtraFlags |= PushIpDateTime
+		r.buf.WriteString(`<div class="push">`)
+		isPush = true
+	}
+
 	if urls := urlPattern.FindAllIndex(line, -1); urls != nil {
 		for _, u := range urls {
 			for i, n := 0, len(u); i < n; i += 2 {
@@ -178,6 +189,10 @@ func (r *Renderer) endOfLine() {
 		}
 	}
 	r.outputToSegment(len(r.lineSegs), 0)
+
+	if isPush {
+		r.buf.WriteString(`</div>`)
+	}
 
 	if rcs, err := FindRichContents(r.lineBuf.Bytes()); err == nil {
 		for _, rc := range rcs {

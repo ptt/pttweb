@@ -8,9 +8,20 @@ import (
 	"strings"
 )
 
+type ExtraFlag int
+
+const (
+	_                 = iota
+	PushTag ExtraFlag = 1 << iota
+	PushUserId
+	PushContent
+	PushIpDateTime
+)
+
 type Segment struct {
 	*bytes.Buffer
-	Tag string
+	Tag        string
+	ExtraFlags ExtraFlag
 
 	fg, bg, flags int
 }
@@ -25,6 +36,18 @@ func (s *Segment) WriteOpen(w io.Writer) (int, error) {
 	}
 	if s.flags&ansi.Highlighted == ansi.Highlighted {
 		classes = append(classes, `hl`)
+	}
+	if s.ExtraFlags&PushTag == PushTag {
+		classes = append(classes, `push_tag`)
+	}
+	if s.ExtraFlags&PushUserId == PushUserId {
+		classes = append(classes, `push_userid`)
+	}
+	if s.ExtraFlags&PushContent == PushContent {
+		classes = append(classes, `push_content`)
+	}
+	if s.ExtraFlags&PushIpDateTime == PushIpDateTime {
+		classes = append(classes, `push_ipdatetime`)
 	}
 	if len(classes) > 0 {
 		return w.Write([]byte(`<` + s.Tag + ` class="` + strings.Join(classes, ` `) + `">`))
