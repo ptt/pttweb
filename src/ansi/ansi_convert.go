@@ -57,9 +57,9 @@ func (a *Ansi2Html) ConvertFromUTF8(input []byte) error {
 				esc.Reset()
 			default:
 				if a.isLineStart {
-					if matchPrefixBytesToStrings(input[i:], quotePrefixes()) {
+					if matchPrefixBytesToStrings(input[i:], quotePrefixStrings) {
 						a.setColor(6, DefaultBg, NoFlags)
-					} else if matchPrefixBytesToStrings(input[i:], sigPrefixes()) {
+					} else if matchPrefixBytesToStrings(input[i:], sigPrefixStrings) {
 						a.setColor(2, DefaultBg, NoFlags)
 					} else {
 						a.resetColorState()
