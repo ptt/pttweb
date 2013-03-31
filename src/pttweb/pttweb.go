@@ -273,6 +273,7 @@ func handleArticle(w http.ResponseWriter, r *http.Request) error {
 	w.WriteHeader(http.StatusOK)
 	return tmpl.ExecuteTemplate(w, "bbsarticle.html", map[string]interface{}{
 		"Title":       ar.ParsedTitle(),
+		"Description": ar.PreviewContent(),
 		"Board":       brd,
 		"ContentHtml": buf.String(),
 	})

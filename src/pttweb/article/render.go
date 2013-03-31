@@ -6,6 +6,10 @@ import (
 	"pttbbs"
 )
 
+const (
+	kPreviewContentLines = 5
+)
+
 type Renderer struct {
 	buf    bytes.Buffer
 	lineNo int
@@ -17,7 +21,12 @@ type Renderer struct {
 	segOffset int
 	segClosed bool
 
+	acceptMetaLines bool
+
 	title string
+
+	previewContent   string
+	previewLineCount int
 }
 
 func NewRenderer() *Renderer {
@@ -40,11 +49,20 @@ func (r *Renderer) Reset() {
 	r.segOffset = 0
 	r.segClosed = true
 
+	r.acceptMetaLines = true
+
 	r.title = ""
+
+	r.previewContent = ""
+	r.previewLineCount = 0
 }
 
 func (r *Renderer) ParsedTitle() string {
 	return r.title
+}
+
+func (r *Renderer) PreviewContent() string {
+	return r.previewContent
 }
 
 func (r *Renderer) Render(content []byte) (*bytes.Buffer, error) {
@@ -141,17 +159,65 @@ func (r *Renderer) prematureCloseSegment() {
 	}
 }
 
+func (r *Renderer) matchFirstLineAndOutput(line []byte) bool {
+	tag1, val1, tag2, val2, ok := pttbbs.ParseArticleFirstLine(r.lineBuf.Bytes())
+	if !ok {
+		return false
+	}
+
+	r.writeMetaLine(tag1, val1, "articleMetaLine")
+	r.writeMetaLine(tag2, val2, "articleMetaLineRight")
+	return true
+}
+
+func (r *Renderer) writeMetaLine(tag, val []byte, divClass string) {
+	r.buf.WriteString(`<div class="` + divClass + `"><span class="articleMetaTag">`)
+	r.buf.Write(tag)
+	r.buf.WriteString(`</span>`)
+	r.buf.WriteString(`<span class="articleMetaVal">`)
+	r.buf.Write(val)
+	r.buf.WriteString(`</span></div>`)
+}
+
 func (r *Renderer) endOfLine() {
 	r.segClosed = true
 
 	line := r.lineBuf.Bytes()
+	parsed := false
 
-	if r.lineNo < 5 {
-		if bytes.HasPrefix(line, []byte(pttbbs.ArticleTitlePrefix)) {
-			r.title = string(bytes.TrimSpace(line[len([]byte(pttbbs.ArticleTitlePrefix)):]))
+	if r.acceptMetaLines && r.lineNo < 5 {
+		if r.lineNo == 1 && r.matchFirstLineAndOutput(line) {
+			parsed = true
+		} else if tag, val, ok := pttbbs.ParseArticleMetaLine(line); ok {
+			if bytes.Equal(tag, []byte(pttbbs.ArticleTitle)) {
+				r.title = string(val)
+			}
+			r.writeMetaLine(tag, val, "articleMetaLine")
+			parsed = true
+		} else {
+			r.acceptMetaLines = false
 		}
 	}
 
+	if !parsed {
+		if r.previewLineCount < kPreviewContentLines {
+			r.previewContent += string(line)
+			r.previewLineCount++
+		}
+		r.processNormalContentLine(line)
+	}
+
+	// Reset and update variables
+	r.mapper.Reset()
+	r.lineBuf.Reset()
+	r.lineSegs = r.lineSegs[0:0]
+	r.segIndex = 0
+	r.segOffset = 0
+	r.segClosed = true
+	r.lineNo++
+}
+
+func (r *Renderer) processNormalContentLine(line []byte) {
 	// Detect push line
 	isPush := false
 	if matchPushLine(r.lineSegs) {
@@ -199,13 +265,4 @@ func (r *Renderer) endOfLine() {
 			r.buf.WriteString(`<div class="richcontent">` + rc.ContentHtml + `</div>`)
 		}
 	}
-
-	// Reset and update variables
-	r.mapper.Reset()
-	r.lineBuf.Reset()
-	r.lineSegs = r.lineSegs[0:0]
-	r.segIndex = 0
-	r.segOffset = 0
-	r.segClosed = true
-	r.lineNo++
 }
