@@ -4,17 +4,6 @@ import (
 	"unicode/utf8"
 )
 
-// Flags
-const (
-	NoFlags = 1 << iota
-	Highlighted
-)
-
-const (
-	DefaultFg = 7
-	DefaultBg = 0
-)
-
 // States
 const (
 	Default = iota
@@ -24,23 +13,15 @@ const (
 	SkipOne
 )
 
-type Ansi2Html struct {
-	StartColor func(fg, bg, flags int)
-	EndColor   func()
-	Rune       func(r rune)
-	EndOfLine  func()
-
-	fg, bg, flags int
-	inColor       bool
-	isLineStart   bool
+type AnsiParser struct {
+	Rune   func(r rune)
+	Escape func(e EscapeSequence)
 }
 
-func (a *Ansi2Html) ConvertFromUTF8(input []byte) error {
+func (a *AnsiParser) ConvertFromUTF8(input []byte) error {
 	s := Default
 	buf := make([]rune, 0, 16)
 	var esc EscapeSequence
-
-	a.isLineStart = true
 
 	for i, n := 0, len(input); i < n; {
 		r, sz := utf8.DecodeRune(input[i:])
@@ -56,24 +37,8 @@ func (a *Ansi2Html) ConvertFromUTF8(input []byte) error {
 				buf = buf[0:0]
 				esc.Reset()
 			default:
-				if a.isLineStart {
-					if matchPrefixBytesToStrings(input[i:], quotePrefixStrings) {
-						a.setColor(6, DefaultBg, NoFlags)
-					} else if matchPrefixBytesToStrings(input[i:], sigPrefixStrings) {
-						a.setColor(2, DefaultBg, NoFlags)
-					} else {
-						a.resetColorState()
-					}
-				}
-				if r == '\n' && a.inColor {
-					a.resetColorState()
-				}
 				a.Rune(r)
-				if r == '\n' {
-					a.EndOfLine()
-				}
 			}
-			a.isLineStart = r == '\n'
 		case Escaping:
 			switch r {
 			case '*':
@@ -99,9 +64,7 @@ func (a *Ansi2Html) ConvertFromUTF8(input []byte) error {
 			case r >= '@' && r <= '~':
 				esc.Mode = r
 				esc.ParseNumbers(buf)
-				if err := a.applyEscSeq(&esc); err != nil {
-					return err
-				}
+				a.Escape(esc)
 				s = Default
 			default:
 				buf = append(buf, r)
@@ -110,64 +73,6 @@ func (a *Ansi2Html) ConvertFromUTF8(input []byte) error {
 			// just skip
 		}
 		i += sz
-	}
-	if a.inColor {
-		a.EndColor()
-	}
-	return nil
-}
-
-func (a *Ansi2Html) resetColorState() {
-	a.setColor(DefaultFg, DefaultBg, NoFlags)
-}
-
-func (a *Ansi2Html) isDefaultColorState() bool {
-	return a.fg == DefaultFg && a.bg == DefaultBg && a.flags == NoFlags
-}
-
-func (a *Ansi2Html) setColor(fg, bg, flags int) error {
-	if a.inColor {
-		a.EndColor()
-	}
-	a.fg = fg
-	a.bg = bg
-	a.flags = flags
-	if !a.isDefaultColorState() {
-		a.StartColor(a.fg, a.bg, a.flags)
-		a.inColor = true
-	} else {
-		a.inColor = false
-	}
-	return nil
-}
-
-func (a *Ansi2Html) applyEscSeq(esc *EscapeSequence) error {
-	switch esc.Mode {
-	case 'm':
-		if len(esc.Nums) == 0 {
-			a.resetColorState()
-			return nil
-		}
-		fg, bg, flags := a.fg, a.bg, a.flags
-		for _, ctl := range esc.Nums {
-			switch {
-			case ctl == 0:
-				fg = DefaultFg
-				bg = DefaultBg
-				flags = NoFlags
-			case ctl == 1:
-				flags |= Highlighted
-			case ctl == 22:
-				flags &= ^Highlighted
-			case ctl >= 30 && ctl <= 37:
-				fg = ctl % 10
-			case ctl >= 40 && ctl <= 47:
-				bg = ctl % 10
-			default:
-				// be nice
-			}
-		}
-		a.setColor(fg, bg, flags)
 	}
 	return nil
 }

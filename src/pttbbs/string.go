@@ -1,12 +1,18 @@
 package pttbbs
 
 import (
+	"bytes"
 	"regexp"
 )
 
 var (
 	ArticleFirstLineRegexp = regexp.MustCompile(`^(.+?): (.+) (.+?): (.+?)\n$`)
 	ArticleMetaLineRegexp  = regexp.MustCompile(`^(.+?): (.+)\n$`)
+
+	QuotePrefixStrings     = []string{": ", "> "}
+	SignaturePrefixStrings = []string{"※", "==>"}
+
+	ArticlePushPrefixStrings = []string{"推 ", "噓 ", "→ "}
 )
 
 const (
@@ -43,4 +49,13 @@ func ParseArticleMetaLine(line []byte) (tag, val []byte, ok bool) {
 		ok = true
 	}
 	return
+}
+
+func MatchPrefixBytesToStrings(str []byte, patts []string) bool {
+	for _, s := range patts {
+		if bytes.HasPrefix(str, []byte(s)) {
+			return true
+		}
+	}
+	return false
 }

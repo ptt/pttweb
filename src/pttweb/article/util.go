@@ -1,13 +1,9 @@
 package article
 
 import (
-	"ansi"
 	"bytes"
 	"html"
-)
-
-var (
-	pushPrefixStrings = []string{"推 ", "噓 ", "→ "}
+	"pttbbs"
 )
 
 func fastWriteHtmlEscapedRune(buf *bytes.Buffer, ru rune) {
@@ -37,8 +33,8 @@ func makeExternalUrlLink(urlString string) (begin, end string) {
 	return
 }
 
-func matchColor(seg *Segment, fg, bg, flags int) bool {
-	return seg.fg == fg && seg.bg == bg && (seg.flags&flags) == flags
+func matchColor(t *TerminalState, fg, bg, flags int) bool {
+	return t.Fg() == fg && t.Bg() == bg && t.HasFlags(flags)
 }
 
 func matchAny(b []byte, patt []string) bool {
@@ -52,10 +48,10 @@ func matchAny(b []byte, patt []string) bool {
 
 func matchPushLine(segs []Segment) bool {
 	return len(segs) == 4 &&
-		matchAny(segs[0].Bytes(), pushPrefixStrings) &&
-		(matchColor(&segs[0], 1, 0, ansi.Highlighted) ||
-			matchColor(&segs[0], 7, 0, ansi.Highlighted)) &&
-		matchColor(&segs[1], 3, 0, ansi.Highlighted) &&
-		matchColor(&segs[2], 3, 0, ansi.NoFlags) &&
-		matchColor(&segs[3], 7, 0, ansi.NoFlags)
+		matchAny(segs[0].Bytes(), pttbbs.ArticlePushPrefixStrings) &&
+		(matchColor(&segs[0].TermState, 1, 0, Highlighted) ||
+			matchColor(&segs[0].TermState, 7, 0, Highlighted)) &&
+		matchColor(&segs[1].TermState, 3, 0, Highlighted) &&
+		matchColor(&segs[2].TermState, 3, 0, NoFlags) &&
+		matchColor(&segs[3].TermState, 7, 0, NoFlags)
 }

@@ -1,7 +1,6 @@
 package article
 
 import (
-	"ansi"
 	"bytes"
 	"io"
 	"strconv"
@@ -22,19 +21,18 @@ type Segment struct {
 	*bytes.Buffer
 	Tag        string
 	ExtraFlags ExtraFlag
-
-	fg, bg, flags int
+	TermState  TerminalState
 }
 
 func (s *Segment) WriteOpen(w io.Writer) (int, error) {
 	classes := make([]string, 0, 3)
-	if s.fg != 7 {
-		classes = append(classes, `f`+strconv.Itoa(s.fg))
+	if s.TermState.Fg() != 7 {
+		classes = append(classes, `f`+strconv.Itoa(s.TermState.Fg()))
 	}
-	if s.bg != 0 {
-		classes = append(classes, `b`+strconv.Itoa(s.bg))
+	if s.TermState.Bg() != 0 {
+		classes = append(classes, `b`+strconv.Itoa(s.TermState.Bg()))
 	}
-	if s.flags&ansi.Highlighted == ansi.Highlighted {
+	if s.TermState.HasFlags(Highlighted) {
 		classes = append(classes, `hl`)
 	}
 	if s.ExtraFlags&PushTag == PushTag {
@@ -96,10 +94,8 @@ func (s *Segment) Slice(i, j int) Segment {
 		j += len(b)
 	}
 	return Segment{
-		fg:     s.fg,
-		bg:     s.bg,
-		flags:  s.flags,
-		Buffer: bytes.NewBuffer(b),
+		TermState: s.TermState,
+		Buffer:    bytes.NewBuffer(b),
 	}
 }
 

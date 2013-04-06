@@ -21,6 +21,8 @@ type Renderer struct {
 	segOffset int
 	segClosed bool
 
+	terminalState TerminalState
+
 	acceptMetaLines bool
 
 	title string
@@ -49,6 +51,8 @@ func (r *Renderer) Reset() {
 	r.segOffset = 0
 	r.segClosed = true
 
+	r.terminalState.Reset()
+
 	r.acceptMetaLines = true
 
 	r.title = ""
@@ -66,18 +70,12 @@ func (r *Renderer) PreviewContent() string {
 }
 
 func (r *Renderer) Render(content []byte) (*bytes.Buffer, error) {
-	converter := &ansi.Ansi2Html{
-		StartColor: func(fg, bg, flags int) {
-			r.startColor(fg, bg, flags)
-		},
-		EndColor: func() {
-			r.endColor()
-		},
+	converter := &ansi.AnsiParser{
 		Rune: func(ru rune) {
 			r.oneRune(ru)
 		},
-		EndOfLine: func() {
-			r.endOfLine()
+		Escape: func(esc ansi.EscapeSequence) {
+			r.escape(esc)
 		},
 	}
 	if err := converter.ConvertFromUTF8(content); err != nil {
@@ -88,23 +86,36 @@ func (r *Renderer) Render(content []byte) (*bytes.Buffer, error) {
 
 func (r *Renderer) currSeg() *Segment {
 	if len(r.lineSegs) == 0 || r.segClosed {
-		r.startColor(ansi.DefaultFg, ansi.DefaultBg, ansi.NoFlags)
+		r.startSegment()
 	}
 	return &r.lineSegs[len(r.lineSegs)-1]
 }
 
-func (r *Renderer) startColor(fg, bg, flags int) {
+func (r *Renderer) escape(esc ansi.EscapeSequence) {
+	r.terminalState.ApplyEscapeSequence(esc)
+	if r.segClosed || !r.terminalState.Equal(&r.currSeg().TermState) {
+		r.startSegment()
+	}
+}
+
+func (r *Renderer) startSegment() {
+	if !r.segClosed {
+		r.endSegment()
+	}
 	r.lineSegs = append(r.lineSegs, Segment{
-		fg:     fg,
-		bg:     bg,
-		flags:  flags,
-		Tag:    "span",
-		Buffer: &bytes.Buffer{},
+		Tag:       "span",
+		TermState: r.terminalState,
+		Buffer:    &bytes.Buffer{},
 	})
 	r.segClosed = false
 }
 
-func (r *Renderer) endColor() {
+func (r *Renderer) endSegment() {
+	// Remove empty segment
+	if r.lineSegs[len(r.lineSegs)-1].Len() == 0 {
+		r.lineSegs = r.lineSegs[:len(r.lineSegs)-1]
+	}
+
 	r.segClosed = true
 }
 
@@ -113,6 +124,10 @@ func (r *Renderer) oneRune(ru rune) {
 	r.mapper.Record(r.lineBuf.Len(), len(r.lineSegs)-1, seg.Len())
 	fastWriteHtmlEscapedRune(seg.Buffer, ru)
 	r.lineBuf.WriteRune(ru)
+
+	if ru == '\n' {
+		r.endOfLine()
+	}
 }
 
 func (r *Renderer) outputToSegment(i, off int) {
@@ -200,6 +215,14 @@ func (r *Renderer) endOfLine() {
 	}
 
 	if !parsed {
+		if len(r.lineSegs) > 0 {
+			if pttbbs.MatchPrefixBytesToStrings(line, pttbbs.QuotePrefixStrings) {
+				r.lineSegs[0].TermState.SetColor(6, DefaultBg, NoFlags)
+			} else if pttbbs.MatchPrefixBytesToStrings(line, pttbbs.SignaturePrefixStrings) {
+				r.lineSegs[0].TermState.SetColor(2, DefaultBg, NoFlags)
+			}
+		}
+
 		if r.previewLineCount < kPreviewContentLines {
 			r.previewContent += string(line)
 			r.previewLineCount++
