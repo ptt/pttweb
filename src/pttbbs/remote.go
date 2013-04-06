@@ -16,11 +16,14 @@ var (
 
 type RemotePtt struct {
 	BoarddAddr string
+
+	connPool *MemcacheConnPool
 }
 
 func NewRemotePtt(boarddAddr string) *RemotePtt {
 	return &RemotePtt{
 		BoarddAddr: boarddAddr,
+		connPool:   NewMemcacheConnPool(boarddAddr, 16),
 	}
 }
 
@@ -46,10 +49,10 @@ func queryInt(brdd *memcache.Connection, key string, ret *int) (err error) {
 
 func (p *RemotePtt) GetBoardChildren(bid int) (children []int, err error) {
 	var memd *memcache.Connection
-	if memd, err = memcache.Connect(p.BoarddAddr); err != nil {
+	if memd, err = p.connPool.GetConn(); err != nil {
 		return
 	}
-	defer memd.Close()
+	defer p.connPool.ReleaseConn(memd)
 
 	var result []byte
 	if result, _, err = memd.Get(key(bid, "children")); err != nil {
@@ -70,10 +73,10 @@ func (p *RemotePtt) GetBoardChildren(bid int) (children []int, err error) {
 
 func (p *RemotePtt) GetBoard(bid int) (brd Board, err error) {
 	var memd *memcache.Connection
-	if memd, err = memcache.Connect(p.BoarddAddr); err != nil {
+	if memd, err = p.connPool.GetConn(); err != nil {
 		return
 	}
-	defer memd.Close()
+	defer p.connPool.ReleaseConn(memd)
 
 	var isboard, over18, hidden int
 	if queryInt(memd, key(bid, "isboard"), &isboard) != nil ||
@@ -96,10 +99,10 @@ func (p *RemotePtt) GetBoard(bid int) (brd Board, err error) {
 
 func (p *RemotePtt) GetArticleCount(bid int) (count int, err error) {
 	var memd *memcache.Connection
-	if memd, err = memcache.Connect(p.BoarddAddr); err != nil {
+	if memd, err = p.connPool.GetConn(); err != nil {
 		return
 	}
-	defer memd.Close()
+	defer p.connPool.ReleaseConn(memd)
 
 	err = queryInt(memd, key(bid, "count"), &count)
 	return
@@ -107,10 +110,10 @@ func (p *RemotePtt) GetArticleCount(bid int) (count int, err error) {
 
 func (p *RemotePtt) GetArticleList(bid, offset int) (articles []Article, err error) {
 	var memd *memcache.Connection
-	if memd, err = memcache.Connect(p.BoarddAddr); err != nil {
+	if memd, err = p.connPool.GetConn(); err != nil {
 		return
 	}
-	defer memd.Close()
+	defer p.connPool.ReleaseConn(memd)
 
 	result, _, err := memd.Get(key(bid, "articles."+strconv.Itoa(offset)))
 	if err != nil {
@@ -155,10 +158,10 @@ func (p *RemotePtt) GetArticleList(bid, offset int) (articles []Article, err err
 
 func (p *RemotePtt) GetArticleContent(bid int, filename string) (content []byte, err error) {
 	var memd *memcache.Connection
-	if memd, err = memcache.Connect(p.BoarddAddr); err != nil {
+	if memd, err = p.connPool.GetConn(); err != nil {
 		return
 	}
-	defer memd.Close()
+	defer p.connPool.ReleaseConn(memd)
 
 	content, _, err = memd.Get(key(bid, "article."+filename))
 	if err != nil {
@@ -169,10 +172,10 @@ func (p *RemotePtt) GetArticleContent(bid int, filename string) (content []byte,
 
 func (p *RemotePtt) BrdName2Bid(brdname string) (bid int, err error) {
 	var memd *memcache.Connection
-	if memd, err = memcache.Connect(p.BoarddAddr); err != nil {
+	if memd, err = p.connPool.GetConn(); err != nil {
 		return
 	}
-	defer memd.Close()
+	defer p.connPool.ReleaseConn(memd)
 
 	err = queryInt(memd, "tobid."+brdname, &bid)
 	return
