@@ -92,7 +92,7 @@ func (p *RemotePtt) GetBoardChildren(bid int) (children []int, err error) {
 
 func (p *RemotePtt) GetBoard(bid int) (brd Board, err error) {
 	var isboard, over18, hidden int
-	if p.queryMemd("iiissssi",
+	if _, err = p.queryMemd("iiissssi",
 		key(bid, "isboard"), &isboard,
 		key(bid, "over18"), &over18,
 		key(bid, "hidden"), &hidden,
