@@ -134,8 +134,15 @@ func loadTemplates(dir string) (*template.Template, error) {
 	return t.ParseGlob(filepath.Join(dir, "*.html"))
 }
 
+func setCommonResponseHeaders(w http.ResponseWriter) {
+	h := w.Header()
+	h.Set("Server", "Cryophoenix")
+	h.Set("Content-Type", "text/html; charset=utf-8")
+}
+
 func errorWrapperHandler(f func(http.ResponseWriter, *http.Request) error) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		setCommonResponseHeaders(w)
 		if err := f(w, r); err != nil {
 			log.Println(err)
 			w.WriteHeader(http.StatusInternalServerError)
