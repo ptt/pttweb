@@ -12,18 +12,26 @@ import (
 	"path/filepath"
 	"pttbbs"
 	"pttweb/article"
+	"pttweb/cache"
 	"runtime/pprof"
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
+)
+
+var (
+	ArticleCacheTimeout = time.Minute * 10
 )
 
 var ptt pttbbs.Pttbbs
 var router *mux.Router
 var tmpl *template.Template
+var cacheMgr *cache.CacheManager
 
 var bindAddress string
 var boarddAddress string
+var memcachedAddress string
 var templateDir string
 var cpuProfile string
 var memProfile string
@@ -31,6 +39,7 @@ var memProfile string
 func init() {
 	flag.StringVar(&bindAddress, "bind", "127.0.0.1:8891", "bind address of the server (host:port)")
 	flag.StringVar(&boarddAddress, "boardd", "", "boardd address (host:port)")
+	flag.StringVar(&memcachedAddress, "memcached", "", "memcached address (host:port)")
 	flag.StringVar(&templateDir, "tmpldir", "templates", "template directory, loads all *.html")
 	flag.StringVar(&cpuProfile, "cpuprofile", "", "write cpu profile to file")
 	flag.StringVar(&memProfile, "memprofile", "", "write memory profile to this file")
@@ -55,6 +64,12 @@ func main() {
 		panic("boardd address not specified")
 	}
 	ptt = pttbbs.NewRemotePtt(boarddAddress)
+
+	// Init cache manager
+	if memcachedAddress == "" {
+		panic("memcached address not specified")
+	}
+	cacheMgr = cache.NewCacheManager(memcachedAddress)
 
 	// Load templates
 	if t, err := loadTemplates(templateDir); err != nil {
@@ -126,6 +141,11 @@ func errorWrapperHandler(f func(http.ResponseWriter, *http.Request) error) func(
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
+}
+
+func handleNotFound(w http.ResponseWriter, r *http.Request) error {
+	w.WriteHeader(http.StatusNotFound)
+	return tmpl.ExecuteTemplate(w, "notfound.html", map[string]interface{}{})
 }
 
 func handleCls(w http.ResponseWriter, r *http.Request) error {
@@ -258,25 +278,53 @@ func handleArticle(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	content, err := ptt.GetArticleContent(bid, filename)
-	if err != nil {
+	// Render content
+	resultChan := cacheMgr.Get(
+		fmt.Sprintf("pttweb:bbs/%s/%s", brd.BrdName, filename),
+		func(key string) (res cache.Result) {
+			a := generateArticle(bid, filename)
+			res.Expire = ArticleCacheTimeout
+			res.Output, res.Err = a.EncodeToBytes()
+			if res.Err != nil {
+				res.Output = nil
+			}
+			return
+		})
+
+	result := <-resultChan
+	var ar cache.Article
+	if err = cache.GobDecode(result.Output, &ar); err != nil {
 		return err
 	}
 
-	// Render content
-	ar := article.NewRenderer()
-	buf, err := ar.Render(content)
-	if err != nil {
-		return err
+	if !ar.IsValid {
+		return handleNotFound(w, r)
 	}
 
 	w.WriteHeader(http.StatusOK)
 	return tmpl.ExecuteTemplate(w, "bbsarticle.html", map[string]interface{}{
-		"Title":       ar.ParsedTitle(),
-		"Description": ar.PreviewContent(),
+		"Title":       ar.ParsedTitle,
+		"Description": ar.PreviewContent,
 		"Board":       brd,
-		"ContentHtml": buf.String(),
+		"ContentHtml": string(ar.ContentHtml),
 	})
+}
+
+func generateArticle(bid int, filename string) (a cache.Article) {
+	content, err := ptt.GetArticleContent(bid, filename)
+	if err != nil || content == nil {
+		return
+	}
+
+	ar := article.NewRenderer()
+	buf, err := ar.Render(content)
+	if err == nil {
+		a.ParsedTitle = ar.ParsedTitle()
+		a.PreviewContent = ar.PreviewContent()
+		a.ContentHtml = buf.Bytes()
+		a.IsValid = true
+	}
+	return
 }
 
 func hasPermViewBoard(brd pttbbs.Board) error {
