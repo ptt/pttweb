@@ -176,7 +176,6 @@ func handleCls(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 
-	w.WriteHeader(http.StatusOK)
 	return tmpl.ExecuteTemplate(w, "classlist.html", map[string]interface{}{
 		"Boards": boards,
 	})
@@ -259,7 +258,6 @@ func handleBbs(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	w.WriteHeader(http.StatusOK)
 	return tmpl.ExecuteTemplate(w, "bbsindex.html", params)
 }
 
@@ -308,7 +306,6 @@ func handleArticle(w http.ResponseWriter, r *http.Request) error {
 		return handleNotFound(w, r)
 	}
 
-	w.WriteHeader(http.StatusOK)
 	return tmpl.ExecuteTemplate(w, "bbsarticle.html", map[string]interface{}{
 		"Title":       ar.ParsedTitle,
 		"Description": ar.PreviewContent,
