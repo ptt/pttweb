@@ -2,6 +2,7 @@ package pttbbs
 
 import (
 	"code.google.com/p/vitess/go/memcache"
+	"log"
 	"time"
 )
 
@@ -48,7 +49,15 @@ func (m *MemcacheConnPool) GetConn() (*memcache.Connection, error) {
 	return r.conn, r.err
 }
 
-func (m *MemcacheConnPool) ReleaseConn(c *memcache.Connection) {
+func (m *MemcacheConnPool) ReleaseConn(c *memcache.Connection, err error) {
+	if err != nil {
+		if me, ok := err.(memcache.MemcacheError); ok {
+			log.Printf("MemcacheConnPool: dropping bad connection to %s due to error: %s\n",
+				m.server, me.Error())
+			m.DropConn(c)
+			return
+		}
+	}
 	go func(c *memcache.Connection) {
 		select {
 		case m.idle <- connectResult{conn: c, err: nil}:
@@ -86,6 +95,6 @@ func (m *MemcacheConnPool) connect() {
 	if c, err := memcache.Connect(m.server); err != nil {
 		m.idle <- connectResult{conn: c, err: err}
 	} else {
-		m.ReleaseConn(c)
+		m.ReleaseConn(c, nil)
 	}
 }

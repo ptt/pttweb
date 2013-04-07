@@ -12,6 +12,7 @@ import (
 var (
 	ErrInvalidArticleLine   = errors.New("Article line format error")
 	ErrAttributeFetchFailed = errors.New("Cannot fetch some attributes")
+	ErrUnknownValueType     = errors.New("Unknown value type")
 )
 
 type RemotePtt struct {
@@ -31,31 +32,49 @@ func key(bid int, attr string) string {
 	return fmt.Sprintf("%d.%s", bid, attr)
 }
 
-func queryString(brdd *memcache.Connection, key string, ret *string) (err error) {
-	var result []byte
-	if result, _, err = brdd.Get(key); err == nil {
-		*ret = bytes.NewBuffer(result).String()
+func (p *RemotePtt) queryMemd(types string, keyvalue ...interface{}) (int, error) {
+	var err error
+	var memd *memcache.Connection
+	if memd, err = p.connPool.GetConn(); err != nil {
+		return 0, err
 	}
-	return
-}
+	defer func() {
+		p.connPool.ReleaseConn(memd, err)
+	}()
 
-func queryInt(brdd *memcache.Connection, key string, ret *int) (err error) {
-	var result []byte
-	if result, _, err = brdd.Get(key); err == nil {
-		_, err = fmt.Fscanf(bytes.NewReader(result), "%d", ret)
+	j := 0
+	for i, t := range types {
+		var result []byte
+		key := keyvalue[j].(string)
+		val := keyvalue[j+1]
+		switch t {
+		case 's':
+			if result, _, err = memd.Get(key); err == nil {
+				*val.(*string) = string(result)
+			}
+		case 'i':
+			if result, _, err = memd.Get(key); err == nil {
+				*val.(*int), err = strconv.Atoi(string(result))
+			}
+		case 'b':
+			if result, _, err = memd.Get(key); err == nil {
+				*val.(*[]byte) = result
+			}
+		default:
+			return i, ErrUnknownValueType
+		}
+		if err != nil {
+			return i, err
+		}
+		j += 2
 	}
-	return
+
+	return len(types), nil
 }
 
 func (p *RemotePtt) GetBoardChildren(bid int) (children []int, err error) {
-	var memd *memcache.Connection
-	if memd, err = p.connPool.GetConn(); err != nil {
-		return
-	}
-	defer p.connPool.ReleaseConn(memd)
-
 	var result []byte
-	if result, _, err = memd.Get(key(bid, "children")); err != nil {
+	if _, err = p.queryMemd("b", key(bid, "children"), &result); err != nil {
 		return
 	}
 
@@ -72,21 +91,16 @@ func (p *RemotePtt) GetBoardChildren(bid int) (children []int, err error) {
 }
 
 func (p *RemotePtt) GetBoard(bid int) (brd Board, err error) {
-	var memd *memcache.Connection
-	if memd, err = p.connPool.GetConn(); err != nil {
-		return
-	}
-	defer p.connPool.ReleaseConn(memd)
-
 	var isboard, over18, hidden int
-	if queryInt(memd, key(bid, "isboard"), &isboard) != nil ||
-		queryInt(memd, key(bid, "over18"), &over18) != nil ||
-		queryInt(memd, key(bid, "hidden"), &hidden) != nil ||
-		queryString(memd, key(bid, "brdname"), &brd.BrdName) != nil ||
-		queryString(memd, key(bid, "title"), &brd.Title) != nil ||
-		queryString(memd, key(bid, "class"), &brd.Class) != nil ||
-		queryString(memd, key(bid, "BM"), &brd.BM) != nil ||
-		queryInt(memd, key(bid, "parent"), &brd.Parent) != nil {
+	if p.queryMemd("iiissssi",
+		key(bid, "isboard"), &isboard,
+		key(bid, "over18"), &over18,
+		key(bid, "hidden"), &hidden,
+		key(bid, "brdname"), &brd.BrdName,
+		key(bid, "title"), &brd.Title,
+		key(bid, "class"), &brd.Class,
+		key(bid, "BM"), &brd.BM,
+		key(bid, "parent"), &brd.Parent); err != nil {
 		err = ErrAttributeFetchFailed
 		return
 	}
@@ -98,31 +112,19 @@ func (p *RemotePtt) GetBoard(bid int) (brd Board, err error) {
 }
 
 func (p *RemotePtt) GetArticleCount(bid int) (count int, err error) {
-	var memd *memcache.Connection
-	if memd, err = p.connPool.GetConn(); err != nil {
-		return
-	}
-	defer p.connPool.ReleaseConn(memd)
-
-	err = queryInt(memd, key(bid, "count"), &count)
+	_, err = p.queryMemd("i", key(bid, "count"), &count)
 	return
 }
 
 func (p *RemotePtt) GetArticleList(bid, offset int) (articles []Article, err error) {
-	var memd *memcache.Connection
-	if memd, err = p.connPool.GetConn(); err != nil {
-		return
-	}
-	defer p.connPool.ReleaseConn(memd)
-
-	result, _, err := memd.Get(key(bid, "articles."+strconv.Itoa(offset)))
-	if err != nil {
+	var result string
+	if _, err = p.queryMemd("s", key(bid, "articles."+strconv.Itoa(offset)), &result); err != nil {
 		return nil, err
 	}
 
 	articles = make([]Article, 0, 20)
 
-	for _, line := range strings.Split(string(result), "\n") {
+	for _, line := range strings.Split(result, "\n") {
 		if line == "" {
 			break
 		}
@@ -157,26 +159,11 @@ func (p *RemotePtt) GetArticleList(bid, offset int) (articles []Article, err err
 }
 
 func (p *RemotePtt) GetArticleContent(bid int, filename string) (content []byte, err error) {
-	var memd *memcache.Connection
-	if memd, err = p.connPool.GetConn(); err != nil {
-		return
-	}
-	defer p.connPool.ReleaseConn(memd)
-
-	content, _, err = memd.Get(key(bid, "article."+filename))
-	if err != nil {
-		return nil, err
-	}
+	_, err = p.queryMemd("b", key(bid, "article."+filename), &content)
 	return
 }
 
 func (p *RemotePtt) BrdName2Bid(brdname string) (bid int, err error) {
-	var memd *memcache.Connection
-	if memd, err = p.connPool.GetConn(); err != nil {
-		return
-	}
-	defer p.connPool.ReleaseConn(memd)
-
-	err = queryInt(memd, "tobid."+brdname, &bid)
+	_, err = p.queryMemd("i", "tobid."+brdname, &bid)
 	return
 }
