@@ -130,6 +130,8 @@ func loadTemplates(dir string) (*template.Template, error) {
 		"route": func(where string, attrs ...string) (*url.URL, error) {
 			return router.Get(where).URLPath(attrs...)
 		},
+		"colored_counter": colored_counter,
+		"post_mark":       post_mark,
 	})
 	return t.ParseGlob(filepath.Join(dir, "*.html"))
 }

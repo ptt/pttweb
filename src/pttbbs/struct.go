@@ -30,3 +30,20 @@ type Article struct {
 	Owner     string
 	Title     string
 }
+
+// Non-mail file modes
+const (
+	FileLocal = 1 << iota
+	FileMarked
+	FileDigest
+	FileBottom
+	FileSolved
+)
+
+// Mail file modes
+const (
+	FileRead = 1 << iota
+	_        // FileMarked
+	FileReplied
+	FileMulti
+)
