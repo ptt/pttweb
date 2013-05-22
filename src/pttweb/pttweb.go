@@ -12,7 +12,6 @@ import (
 	"pttbbs"
 	"pttweb/article"
 	"pttweb/cache"
-	"runtime/pprof"
 	"strconv"
 	"strings"
 	"text/template"
