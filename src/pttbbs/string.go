@@ -24,7 +24,7 @@ var validBrdNameRegexp *regexp.Regexp
 
 func IsValidBrdName(brdname string) bool {
 	if validBrdNameRegexp == nil {
-		validBrdNameRegexp = regexp.MustCompile("^[a-zA-Z0-9_\\-]+$")
+		validBrdNameRegexp = regexp.MustCompile(`^[a-zA-Z][0-9a-zA-Z_\.\-]+$`)
 	}
 	return validBrdNameRegexp.MatchString(brdname)
 }

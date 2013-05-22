@@ -105,11 +105,11 @@ func main() {
 
 func createRouter() *mux.Router {
 	router := mux.NewRouter()
-	router.HandleFunc("/cls/{bid:[0-9]+}", errorWrapperHandler(handleCls)).Name("classlist")
-	router.HandleFunc("/bbs/{brdname:[0-9a-zA-Z_\\-]+}{x:/?}", errorWrapperHandler(handleBbsIndexRedirect))
-	router.HandleFunc("/bbs/{brdname:[0-9a-zA-Z_\\-]+}/index.html", errorWrapperHandler(handleBbs)).Name("bbsindex")
-	router.HandleFunc("/bbs/{brdname:[0-9a-zA-Z_\\-]+}/index{page:\\d+}.html", errorWrapperHandler(handleBbs)).Name("bbsindex_page")
-	router.HandleFunc("/bbs/{brdname:[0-9a-zA-Z_\\-]+}/{filename:[MG]\\.\\d+(\\.A\\.[0-9A-F]+)?}.html", errorWrapperHandler(handleArticle)).Name("bbsarticle")
+	router.HandleFunc(`/cls/{bid:[0-9]+}`, errorWrapperHandler(handleCls)).Name("classlist")
+	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}{x:/?}`, errorWrapperHandler(handleBbsIndexRedirect))
+	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/index.html`, errorWrapperHandler(handleBbs)).Name("bbsindex")
+	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/index{page:\d+}.html`, errorWrapperHandler(handleBbs)).Name("bbsindex_page")
+	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/{filename:[MG]\.\d+(\.A\.[0-9A-F]+)?}.html`, errorWrapperHandler(handleArticle)).Name("bbsarticle")
 	return router
 }
 
