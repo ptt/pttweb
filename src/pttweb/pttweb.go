@@ -40,23 +40,10 @@ func init() {
 	flag.StringVar(&boarddAddress, "boardd", "", "boardd address (host:port)")
 	flag.StringVar(&memcachedAddress, "memcached", "", "memcached address (host:port)")
 	flag.StringVar(&templateDir, "tmpldir", "templates", "template directory, loads all *.html")
-	flag.StringVar(&cpuProfile, "cpuprofile", "", "write cpu profile to file")
-	flag.StringVar(&memProfile, "memprofile", "", "write memory profile to this file")
 }
 
 func main() {
 	flag.Parse()
-
-	// CPU Profiling
-	if cpuProfile != "" {
-		f, err := os.Create(cpuProfile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer f.Close()
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
-	}
 
 	// Init RemotePtt
 	if boarddAddress == "" {
@@ -91,15 +78,6 @@ func main() {
 	progExit := make(chan os.Signal)
 	signal.Notify(progExit, os.Interrupt)
 	<-progExit
-
-	if memProfile != "" {
-		f, err := os.Create(memProfile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		pprof.WriteHeapProfile(f)
-		f.Close()
-	}
 }
 
 func createRouter() *mux.Router {
