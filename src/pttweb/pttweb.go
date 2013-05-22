@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"pttbbs"
 	"pttweb/article"
 	"pttweb/cache"
@@ -26,7 +25,7 @@ var (
 
 var ptt pttbbs.Pttbbs
 var router *mux.Router
-var tmpl *template.Template
+var tmpl TemplateMap
 var cacheMgr *cache.CacheManager
 
 var bindAddress string
@@ -72,7 +71,7 @@ func main() {
 	cacheMgr = cache.NewCacheManager(memcachedAddress)
 
 	// Load templates
-	if t, err := loadTemplates(templateDir); err != nil {
+	if t, err := loadTemplates(templateDir, templateFiles); err != nil {
 		panic(err)
 	} else {
 		tmpl = t
@@ -113,8 +112,8 @@ func createRouter() *mux.Router {
 	return router
 }
 
-func loadTemplates(dir string) (*template.Template, error) {
-	t := template.New("root").Funcs(template.FuncMap{
+func templateFuncMap() template.FuncMap {
+	return template.FuncMap{
 		"route_bbsindex": func(b pttbbs.Board) (*url.URL, error) {
 			return router.Get("bbsindex").URLPath("brdname", b.BrdName)
 		},
@@ -132,8 +131,7 @@ func loadTemplates(dir string) (*template.Template, error) {
 		},
 		"colored_counter": colored_counter,
 		"post_mark":       post_mark,
-	})
-	return t.ParseGlob(filepath.Join(dir, "*.html"))
+	}
 }
 
 func setCommonResponseHeaders(w http.ResponseWriter) {
@@ -154,7 +152,7 @@ func errorWrapperHandler(f func(http.ResponseWriter, *http.Request) error) func(
 
 func handleNotFound(w http.ResponseWriter, r *http.Request) error {
 	w.WriteHeader(http.StatusNotFound)
-	return tmpl.ExecuteTemplate(w, "notfound.html", map[string]interface{}{})
+	return tmpl["notfound.html"].Execute(w, nil)
 }
 
 func handleCls(w http.ResponseWriter, r *http.Request) error {
@@ -178,7 +176,7 @@ func handleCls(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 
-	return tmpl.ExecuteTemplate(w, "classlist.html", map[string]interface{}{
+	return tmpl["classlist.html"].Execute(w, map[string]interface{}{
 		"Boards": boards,
 	})
 }
@@ -260,7 +258,7 @@ func handleBbs(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	return tmpl.ExecuteTemplate(w, "bbsindex.html", params)
+	return tmpl["bbsindex.html"].Execute(w, params)
 }
 
 func handleArticle(w http.ResponseWriter, r *http.Request) error {
@@ -308,7 +306,7 @@ func handleArticle(w http.ResponseWriter, r *http.Request) error {
 		return handleNotFound(w, r)
 	}
 
-	return tmpl.ExecuteTemplate(w, "bbsarticle.html", map[string]interface{}{
+	return tmpl["bbsarticle.html"].Execute(w, map[string]interface{}{
 		"Title":       ar.ParsedTitle,
 		"Description": ar.PreviewContent,
 		"Board":       brd,
