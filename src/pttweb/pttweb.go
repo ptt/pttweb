@@ -38,7 +38,7 @@ func init() {
 	flag.StringVar(&bindAddress, "bind", "127.0.0.1:8891", "bind address of the server (host:port)")
 	flag.StringVar(&boarddAddress, "boardd", "", "boardd address (host:port)")
 	flag.StringVar(&memcachedAddress, "memcached", "", "memcached address (host:port)")
-	flag.StringVar(&templateDir, "tmpldir", "templates", "template directory, loads all *.html")
+	flag.StringVar(&templateDir, "tmpldir", "templates", "template directory")
 }
 
 func main() {
