@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/gorilla/mux"
@@ -27,38 +28,58 @@ var router *mux.Router
 var tmpl TemplateMap
 var cacheMgr *cache.CacheManager
 
-var bindAddress string
-var boarddAddress string
-var memcachedAddress string
-var templateDir string
-var cpuProfile string
-var memProfile string
+var configPath string
+var config PttwebConfig
 
 func init() {
-	flag.StringVar(&bindAddress, "bind", "127.0.0.1:8891", "bind address of the server (host:port)")
-	flag.StringVar(&boarddAddress, "boardd", "", "boardd address (host:port)")
-	flag.StringVar(&memcachedAddress, "memcached", "", "memcached address (host:port)")
-	flag.StringVar(&templateDir, "tmpldir", "templates", "template directory")
+	flag.StringVar(&configPath, "conf", "config.json", "config file")
+}
+
+func loadConfig() error {
+	f, err := os.Open(configPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if err := json.NewDecoder(f).Decode(&config); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func main() {
 	flag.Parse()
 
-	// Init RemotePtt
-	if boarddAddress == "" {
-		panic("boardd address not specified")
+	if err := loadConfig(); err != nil {
+		log.Println("loadConfig() error:", err)
+		return
 	}
-	ptt = pttbbs.NewRemotePtt(boarddAddress)
+
+	if config.BindAddress == "" {
+		config.BindAddress = "127.0.0.1:8891"
+		log.Println("No bind address, using", config.BindAddress)
+	}
+
+	// Init RemotePtt
+	if config.BoarddAddress == "" {
+		log.Println("boardd address not specified")
+		return
+	}
+	ptt = pttbbs.NewRemotePtt(config.BoarddAddress)
 
 	// Init cache manager
-	if memcachedAddress == "" {
-		panic("memcached address not specified")
+	if config.MemcachedAddress == "" {
+		log.Println("memcached address not specified")
+		return
 	}
-	cacheMgr = cache.NewCacheManager(memcachedAddress)
+	cacheMgr = cache.NewCacheManager(config.MemcachedAddress)
 
 	// Load templates
-	if t, err := loadTemplates(templateDir, templateFiles); err != nil {
-		panic(err)
+	if t, err := loadTemplates(config.TemplateDirectory, templateFiles); err != nil {
+		log.Println("cannot load templates:", err)
+		return
 	} else {
 		tmpl = t
 	}
@@ -68,7 +89,7 @@ func main() {
 	http.Handle("/", router)
 
 	go func() {
-		if err := http.ListenAndServe(bindAddress, nil); err != nil {
+		if err := http.ListenAndServe(config.BindAddress, nil); err != nil {
 			log.Fatal("ListenAndServe: ", err)
 			os.Exit(1)
 		}
@@ -108,6 +129,12 @@ func templateFuncMap() template.FuncMap {
 		},
 		"colored_counter": colored_counter,
 		"post_mark":       post_mark,
+		"ga_account": func() string {
+			return config.GAAccount
+		},
+		"ga_domain": func() string {
+			return config.GADomain
+		},
 	}
 }
 
