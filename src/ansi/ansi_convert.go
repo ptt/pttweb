@@ -71,6 +71,7 @@ func (a *AnsiParser) ConvertFromUTF8(input []byte) error {
 			}
 		case SkipOne:
 			// just skip
+			s = Default
 		}
 		i += sz
 	}
