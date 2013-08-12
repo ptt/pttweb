@@ -248,6 +248,8 @@ func (r *Renderer) processNormalContentLine(line []byte) {
 		r.lineSegs[1].ExtraFlags |= PushUserId
 		r.lineSegs[2].ExtraFlags |= PushContent
 		r.lineSegs[3].ExtraFlags |= PushIpDateTime
+		// Remove trailing spaces
+		r.lineSegs[2].TrimRight(" ")
 		r.buf.WriteString(`<div class="push">`)
 		isPush = true
 	}

@@ -102,3 +102,7 @@ func (s *Segment) Slice(i, j int) Segment {
 func (s *Segment) Split(at int) (Segment, Segment) {
 	return s.Slice(0, at), s.Slice(at, -1)
 }
+
+func (s *Segment) TrimRight(cutset string) {
+	s.Truncate(len(bytes.TrimRight(s.Bytes(), cutset)))
+}
