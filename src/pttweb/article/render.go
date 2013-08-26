@@ -187,10 +187,10 @@ func (r *Renderer) matchFirstLineAndOutput(line []byte) bool {
 
 func (r *Renderer) writeMetaLine(tag, val []byte, divClass string) {
 	r.buf.WriteString(`<div class="` + divClass + `"><span class="articleMetaTag">`)
-	r.buf.Write(tag)
+	fastWriteHtmlEscaped(&r.buf, string(tag))
 	r.buf.WriteString(`</span>`)
 	r.buf.WriteString(`<span class="articleMetaVal">`)
-	r.buf.Write(val)
+	fastWriteHtmlEscaped(&r.buf, string(val))
 	r.buf.WriteString(`</span></div>`)
 }
 

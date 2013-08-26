@@ -27,6 +27,16 @@ func fastWriteHtmlEscapedRune(buf *bytes.Buffer, ru rune) {
 	}
 }
 
+func fastWriteHtmlEscaped(buf *bytes.Buffer, str string) {
+	for _, ru := range str {
+		if ru == 0xFFFD {
+			// Invalid UTF-8 sequence
+			continue
+		}
+		fastWriteHtmlEscapedRune(buf, ru)
+	}
+}
+
 func makeExternalUrlLink(urlString string) (begin, end string) {
 	begin = `<a href="` + html.EscapeString(urlString) + `" target="_blank" rel="nofollow">`
 	end = `</a>`
