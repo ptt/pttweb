@@ -25,7 +25,7 @@ var defaultPatterns = []*UrlPattern{
 	NewUrlPattern(`^http://v\.youku\.com/v_show/id_(\w+)\.html`, handleYouku),
 	NewUrlPattern(`^https?://imgur\.com/([,\w]+)(?:\#(\d+))?[^/]*$`, handleImgur),
 	NewUrlPattern(`^http://picmoe\.net/d\.php\?id=(\d+)`, handlePicmoe),
-	NewUrlPattern(`\.(?:png|jpg|gif)$`, handleGenericImage),
+	NewUrlPattern(`\.(?i:png|jpg|gif)$`, handleGenericImage),
 }
 
 func NewUrlPattern(pattern string, handler UrlPatternHandler) *UrlPattern {
