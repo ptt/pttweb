@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"pttbbs"
 	"pttweb/article"
 	"pttweb/cache"
@@ -102,6 +103,7 @@ func main() {
 
 func createRouter() *mux.Router {
 	router := mux.NewRouter()
+	router.PathPrefix(`/static/`).Handler(http.StripPrefix(`/static/`, http.FileServer(http.Dir(filepath.Join(config.TemplateDirectory, `static`)))))
 	router.HandleFunc(`/cls/{bid:[0-9]+}`, errorWrapperHandler(handleCls)).Name("classlist")
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}{x:/?}`, errorWrapperHandler(handleBbsIndexRedirect))
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/index.html`, errorWrapperHandler(handleBbs)).Name("bbsindex")
@@ -126,6 +128,9 @@ func templateFuncMap() template.FuncMap {
 		},
 		"route": func(where string, attrs ...string) (*url.URL, error) {
 			return router.Get(where).URLPath(attrs...)
+		},
+		"static_prefix": func() string {
+			return config.StaticPrefix
 		},
 		"colored_counter": colored_counter,
 		"post_mark":       post_mark,

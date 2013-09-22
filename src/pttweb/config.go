@@ -5,6 +5,7 @@ type PttwebConfig struct {
 	BoarddAddress     string
 	MemcachedAddress  string
 	TemplateDirectory string
+	StaticPrefix      string
 
 	GAAccount string
 	GADomain  string
