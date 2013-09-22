@@ -180,16 +180,16 @@ func (r *Renderer) matchFirstLineAndOutput(line []byte) bool {
 		return false
 	}
 
-	r.writeMetaLine(tag1, val1, "articleMetaLine")
-	r.writeMetaLine(tag2, val2, "articleMetaLineRight")
+	r.writeMetaLine(tag1, val1, ClassArticleMetaLine)
+	r.writeMetaLine(tag2, val2, ClassArticleMetaLineRight)
 	return true
 }
 
 func (r *Renderer) writeMetaLine(tag, val []byte, divClass string) {
-	r.buf.WriteString(`<div class="` + divClass + `"><span class="articleMetaTag">`)
+	r.buf.WriteString(`<div class="` + divClass + `"><span class="` + ClassArticleMetaTag + `">`)
 	fastWriteHtmlEscaped(&r.buf, string(tag))
 	r.buf.WriteString(`</span>`)
-	r.buf.WriteString(`<span class="articleMetaVal">`)
+	r.buf.WriteString(`<span class="` + ClassArticleMetaValue + `">`)
 	fastWriteHtmlEscaped(&r.buf, string(val))
 	r.buf.WriteString(`</span></div>`)
 }
@@ -207,7 +207,7 @@ func (r *Renderer) endOfLine() {
 			if bytes.Equal(tag, []byte(pttbbs.ArticleTitle)) {
 				r.title = string(val)
 			}
-			r.writeMetaLine(tag, val, "articleMetaLine")
+			r.writeMetaLine(tag, val, ClassArticleMetaLine)
 			parsed = true
 		} else {
 			r.acceptMetaLines = false
@@ -250,7 +250,7 @@ func (r *Renderer) processNormalContentLine(line []byte) {
 		r.lineSegs[3].ExtraFlags |= PushIpDateTime
 		// Remove trailing spaces
 		r.lineSegs[2].TrimRight(" ")
-		r.buf.WriteString(`<div class="push">`)
+		r.buf.WriteString(`<div class="` + ClassPushDiv + `">`)
 		isPush = true
 	}
 

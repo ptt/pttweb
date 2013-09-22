@@ -10,11 +10,11 @@ import (
 type ExtraFlag int
 
 const (
-	_                 = iota
 	PushTag ExtraFlag = 1 << iota
 	PushUserId
 	PushContent
 	PushIpDateTime
+	PushMaxVal // Dummy value
 )
 
 type Segment struct {
@@ -24,28 +24,28 @@ type Segment struct {
 	TermState  TerminalState
 }
 
+var extraFlagClasses = []string{
+	ClassPushTag,
+	ClassPushUserId,
+	ClassPushContent,
+	ClassPushIpDatetime,
+}
+
 func (s *Segment) WriteOpen(w io.Writer) (int, error) {
 	classes := make([]string, 0, 3)
 	if s.TermState.Fg() != 7 {
-		classes = append(classes, `f`+strconv.Itoa(s.TermState.Fg()))
+		classes = append(classes, ClassFgPrefix+strconv.Itoa(s.TermState.Fg()))
 	}
 	if s.TermState.Bg() != 0 {
-		classes = append(classes, `b`+strconv.Itoa(s.TermState.Bg()))
+		classes = append(classes, ClassBgPrefix+strconv.Itoa(s.TermState.Bg()))
 	}
 	if s.TermState.HasFlags(Highlighted) {
-		classes = append(classes, `hl`)
+		classes = append(classes, ClassHighlight)
 	}
-	if s.ExtraFlags&PushTag == PushTag {
-		classes = append(classes, `push_tag`)
-	}
-	if s.ExtraFlags&PushUserId == PushUserId {
-		classes = append(classes, `push_userid`)
-	}
-	if s.ExtraFlags&PushContent == PushContent {
-		classes = append(classes, `push_content`)
-	}
-	if s.ExtraFlags&PushIpDateTime == PushIpDateTime {
-		classes = append(classes, `push_ipdatetime`)
+	for i, fl := 0, ExtraFlag(1); fl < PushMaxVal; i, fl = i+1, fl<<1 {
+		if s.HasExtraFlags(fl) {
+			classes = append(classes, extraFlagClasses[i])
+		}
 	}
 	if len(classes) > 0 {
 		return w.Write([]byte(`<` + s.Tag + ` class="` + strings.Join(classes, ` `) + `">`))
@@ -53,6 +53,10 @@ func (s *Segment) WriteOpen(w io.Writer) (int, error) {
 		s.Tag = ""
 	}
 	return 0, nil
+}
+
+func (s *Segment) HasExtraFlags(fl ExtraFlag) bool {
+	return s.ExtraFlags&fl == fl
 }
 
 func (s *Segment) WriteInner(w io.Writer) (int, error) {
