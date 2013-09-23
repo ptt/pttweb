@@ -21,7 +21,8 @@ import (
 )
 
 var (
-	ArticleCacheTimeout = time.Minute * 10
+	ArticleCacheTimeout  = time.Minute * 10
+	BbsIndexCacheTimeout = time.Minute * 5
 )
 
 var ptt pttbbs.Pttbbs
@@ -117,6 +118,9 @@ func templateFuncMap() template.FuncMap {
 		"route_bbsindex": func(b pttbbs.Board) (*url.URL, error) {
 			return router.Get("bbsindex").URLPath("brdname", b.BrdName)
 		},
+		"route_bbsindex_page": func(b pttbbs.Board, pg int) (*url.URL, error) {
+			return router.Get("bbsindex_page").URLPath("brdname", b.BrdName, "page", strconv.Itoa(pg))
+		},
 		"route_classlist": func(b pttbbs.Board) (*url.URL, error) {
 			return router.Get("classlist").URLPath("bid", strconv.Itoa(b.Bid))
 		},
@@ -211,27 +215,65 @@ func handleBbs(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	var err error
-	params := make(map[string]interface{})
 
 	bid, err := ptt.BrdName2Bid(brdname)
 	if err != nil {
-		return err
+		log.Println("BrdName2Bid", brdname, err)
+		return handleNotFound(w, r)
 	}
 
 	brd, err := ptt.GetBoard(bid)
 	if err != nil {
-		return err
+		log.Println("GetBoard", bid, err)
+		return handleNotFound(w, r)
 	}
-	params["Board"] = brd
 
 	err = hasPermViewBoard(brd)
 	if err != nil {
+		log.Println("hasPermViewBoard", brd.BrdName, err)
+		return handleNotFound(w, r)
+	}
+
+	resultChan := cacheMgr.Get(
+		fmt.Sprintf("pttweb:bbsindex/%s/%d", brd.BrdName, page),
+		func(key string) (res cache.Result) {
+			bi, err := generateBbsIndex(brd, page)
+			if err != nil {
+				bi = &cache.BbsIndex{
+					IsValid: false,
+				}
+			}
+			res.Expire = BbsIndexCacheTimeout
+			res.Output, res.Err = bi.EncodeToBytes()
+			if res.Err != nil {
+				res.Output = nil
+			}
+			return
+		})
+
+	result := <-resultChan
+	var bbsindex cache.BbsIndex
+	if err = cache.GobDecode(result.Output, &bbsindex); err != nil {
 		return err
 	}
 
-	count, err := ptt.GetArticleCount(bid)
+	if !bbsindex.IsValid {
+		log.Println("Not a valid cache.BbsIndex", brd.BrdName, page)
+		return handleNotFound(w, r)
+	}
+
+	return tmpl["bbsindex.html"].Execute(w, &bbsindex)
+}
+
+func generateBbsIndex(brd pttbbs.Board, page int) (bbsindex *cache.BbsIndex, err error) {
+	bbsindex = &cache.BbsIndex{
+		Board:   brd,
+		IsValid: true,
+	}
+
+	count, err := ptt.GetArticleCount(brd.Bid)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Handle paging
@@ -240,34 +282,27 @@ func handleBbs(w http.ResponseWriter, r *http.Request) error {
 		page = paging.LastPageNo()
 		paging.SetPageNo(page)
 	} else if err = paging.SetPageNo(page); err != nil {
-		return err
+		return nil, err
 	}
+	bbsindex.TotalPage = paging.LastPageNo()
 
 	// Fetch article list
-	params["Articles"], err = ptt.GetArticleList(bid, paging.Cursor())
+	bbsindex.Articles, err = ptt.GetArticleList(brd.Bid, paging.Cursor())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Page links
-	pageLink := func(i int) *url.URL {
-		if i < 1 || i > paging.LastPageNo() {
-			return nil
-		}
-		if u, err := router.Get("bbsindex_page").URLPath("brdname", brdname, "page", strconv.Itoa(i)); err == nil {
-			return u
-		}
-		return nil
+	if page > 1 {
+		bbsindex.HasPrevPage = true
+		bbsindex.PrevPage = page - 1
 	}
-	params["PrevPage"] = pageLink(page - 1)
-	params["NextPage"] = pageLink(page + 1)
-	params["FirstPage"] = pageLink(1)
-	params["LastPage"], err = router.Get("bbsindex").URLPath("brdname", brdname)
-	if err != nil {
-		return err
+	if page < paging.LastPageNo() {
+		bbsindex.HasNextPage = true
+		bbsindex.NextPage = page + 1
 	}
 
-	return tmpl["bbsindex.html"].Execute(w, params)
+	return bbsindex, nil
 }
 
 func handleArticle(w http.ResponseWriter, r *http.Request) error {
