@@ -1,7 +1,7 @@
 package main
 
 type PttwebConfig struct {
-	BindAddress       string
+	Bind              []string
 	BoarddAddress     string
 	MemcachedAddress  string
 	TemplateDirectory string

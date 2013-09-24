@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -59,11 +60,6 @@ func main() {
 		return
 	}
 
-	if config.BindAddress == "" {
-		config.BindAddress = "127.0.0.1:8891"
-		log.Println("No bind address, using", config.BindAddress)
-	}
-
 	// Init RemotePtt
 	if config.BoarddAddress == "" {
 		log.Println("boardd address not specified")
@@ -90,12 +86,30 @@ func main() {
 	router = createRouter()
 	http.Handle("/", router)
 
-	go func() {
-		if err := http.ListenAndServe(config.BindAddress, nil); err != nil {
-			log.Fatal("ListenAndServe: ", err)
+	if len(config.Bind) == 0 {
+		log.Fatal("No bind addresses specified in config")
+		os.Exit(1)
+	}
+	for _, addr := range config.Bind {
+		part := strings.SplitN(addr, ":", 2)
+		if len(part) != 2 {
+			log.Fatal("Invalid bind address: ", addr)
 			os.Exit(1)
 		}
-	}()
+		if listener, err := net.Listen(part[0], part[1]); err != nil {
+			log.Fatal("Listen failed for address: ", addr, " error: ", err)
+			os.Exit(1)
+		} else {
+			if part[0] == "unix" {
+				os.Chmod(part[1], 0777)
+				// Ignores errors, we can't do anything to those.
+			}
+			svr := &http.Server{
+				MaxHeaderBytes: 64 * 1024,
+			}
+			go svr.Serve(listener)
+		}
+	}
 
 	progExit := make(chan os.Signal)
 	signal.Notify(progExit, os.Interrupt)
