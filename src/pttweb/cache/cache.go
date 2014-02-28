@@ -1,113 +1,127 @@
 package cache
 
 import (
-	"code.google.com/p/vitess/go/memcache"
 	"pttbbs"
 	"sync"
 	"time"
 )
 
-type Result struct {
-	Output []byte
-	Err    error
-	Expire time.Duration
+type Key interface {
+	String() string
 }
 
-type Request struct {
-	Key      string
-	Output   chan<- Result
-	Generate GenerateFunc
+type NewableFromBytes interface {
+	NewFromBytes(data []byte) (Cacheable, error)
 }
 
-type GenerateFunc func(key string) Result
+type Cacheable interface {
+	NewableFromBytes
+	EncodeToBytes() ([]byte, error)
+}
+
+type GenerateFunc func(key Key) (Cacheable, error)
+
+type result struct {
+	Obj Cacheable
+	Err error
+}
+
+type resultChan chan result
 
 type CacheManager struct {
 	server   string
 	connPool *pttbbs.MemcacheConnPool
 
 	mu      sync.Mutex
-	pending map[string][]Request
+	pending map[string][]resultChan
 }
 
 func NewCacheManager(server string) *CacheManager {
 	return &CacheManager{
 		server:   server,
 		connPool: pttbbs.NewMemcacheConnPool(server, 8),
-		pending:  make(map[string][]Request),
+		pending:  make(map[string][]resultChan),
 	}
 }
 
-func (m *CacheManager) Get(key string, generate GenerateFunc) <-chan Result {
-	resultChan := make(chan Result)
+func (m *CacheManager) Get(key Key, tp NewableFromBytes, expire time.Duration, generate GenerateFunc) (Cacheable, error) {
+	keyString := key.String()
 
-	go func() {
-		// Check if can be served from cache
-		if result, err := m.getFromCache(key); err == nil && result.Output != nil {
-			resultChan <- result
-			return
-		}
+	// Check if can be served from cache
+	if data, err := m.getFromCache(keyString); err == nil && data != nil {
+		return tp.NewFromBytes(data)
+	}
 
-		// No luck. Check if anyone is generating
-		cascade := true
-		m.mu.Lock()
-		if _, ok := m.pending[key]; !ok {
-			cascade = false
-			m.pending[key] = make([]Request, 0, 1)
-		}
-		m.pending[key] = append(m.pending[key], Request{
-			Key:      key,
-			Output:   resultChan,
-			Generate: generate,
-		})
-		m.mu.Unlock()
+	ch := make(chan result)
 
-		if cascade {
-			// Someone is generating, we wait
-			return
-		}
-
+	// No luck. Check if anyone is generating
+	if first := m.putPendings(keyString, ch); first {
 		// We are the one responsible for generating the result
-		result := generate(key)
-		if result.Err == nil {
-			// If there is no errors during generating, store result in cache
-			m.storeResultCache(key, result)
-		}
+		go m.doGenerate(key, keyString, expire, generate)
+	}
 
-		// Respond to all audience
-		m.mu.Lock()
-		audience := m.pending[key]
-		delete(m.pending, key)
-		m.mu.Unlock()
-
-		for _, c := range audience {
-			c.Output <- result
-		}
-	}()
-
-	return resultChan
+	result := <-ch
+	return result.Obj, result.Err
 }
 
-func (m *CacheManager) getFromCache(key string) (result Result, err error) {
-	var memd *memcache.Connection
-	if memd, err = m.connPool.GetConn(); err == nil {
-		defer func() {
-			m.connPool.ReleaseConn(memd, err)
-		}()
-
-		result.Output, _, err = memd.Get(key)
-		result.Err = err
+func (m *CacheManager) doGenerate(key Key, keyString string, expire time.Duration, generate GenerateFunc) {
+	obj, err := generate(key)
+	if err == nil {
+		// There is no errors during generating, store result in cache
+		if data, err := obj.EncodeToBytes(); err != nil {
+			m.storeResultCache(keyString, data, expire)
+		}
 	}
+
+	// Respond to all audience
+	result := result{
+		Obj: obj,
+		Err: err,
+	}
+	for _, c := range m.removePendings(keyString) {
+		c <- result
+	}
+}
+
+func (m *CacheManager) putPendings(key string, ch resultChan) (first bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.pending[key]; !ok {
+		first = true
+		m.pending[key] = make([]resultChan, 0, 1)
+	}
+	m.pending[key] = append(m.pending[key], ch)
 	return
 }
 
-func (m *CacheManager) storeResultCache(key string, result Result) (err error) {
-	var memd *memcache.Connection
-	if memd, err = m.connPool.GetConn(); err == nil {
-		defer func() {
-			m.connPool.ReleaseConn(memd, err)
-		}()
+func (m *CacheManager) removePendings(key string) []resultChan {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-		_, err = memd.Set(key, 0, uint64(result.Expire.Seconds()), result.Output)
+	pendings := m.pending[key]
+	delete(m.pending, key)
+	return pendings
+}
+
+func (m *CacheManager) getFromCache(key string) ([]byte, error) {
+	memd, err := m.connPool.GetConn()
+	if err != nil {
+		return nil, err
 	}
-	return
+	defer m.connPool.ReleaseConn(memd, err)
+
+	data, _, err := memd.Get(key)
+	return data, err
+}
+
+func (m *CacheManager) storeResultCache(key string, data []byte, expire time.Duration) error {
+	memd, err := m.connPool.GetConn()
+	if err != nil {
+		return err
+	}
+	defer m.connPool.ReleaseConn(memd, err)
+
+	_, err = memd.Set(key, 0, uint64(expire.Seconds()), data)
+	return err
 }

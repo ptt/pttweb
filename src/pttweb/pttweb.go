@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/gorilla/mux"
 	"log"
 	"net"
 	"net/http"
@@ -12,16 +11,18 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"pttbbs"
-	"pttweb/article"
-	"pttweb/cache"
 	"strconv"
 	"strings"
 	"text/template"
 	"time"
+
+	"pttbbs"
+	"pttweb/cache"
+
+	"github.com/gorilla/mux"
 )
 
-var (
+const (
 	ArticleCacheTimeout  = time.Minute * 10
 	BbsIndexCacheTimeout = time.Minute * 5
 )
@@ -248,28 +249,11 @@ func handleBbs(w http.ResponseWriter, r *http.Request) error {
 		return handleNotFound(w, r)
 	}
 
-	resultChan := cacheMgr.Get(
-		fmt.Sprintf("pttweb:bbsindex/%s/%d", brd.BrdName, page),
-		func(key string) (res cache.Result) {
-			bi, err := generateBbsIndex(brd, page)
-			if err != nil {
-				bi = &cache.BbsIndex{
-					IsValid: false,
-				}
-			}
-			res.Expire = BbsIndexCacheTimeout
-			res.Output, res.Err = bi.EncodeToBytes()
-			if res.Err != nil {
-				res.Output = nil
-			}
-			return
-		})
-
-	result := <-resultChan
-	var bbsindex cache.BbsIndex
-	if err = cache.GobDecode(result.Output, &bbsindex); err != nil {
-		return err
-	}
+	obj, err := cacheMgr.Get(&BbsIndexRequest{
+		Brd:  brd,
+		Page: page,
+	}, ZeroBbsIndex, BbsIndexCacheTimeout, generateBbsIndex)
+	bbsindex := obj.(*BbsIndex)
 
 	if !bbsindex.IsValid {
 		log.Println("Not a valid cache.BbsIndex", brd.BrdName, page)
@@ -277,46 +261,6 @@ func handleBbs(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	return tmpl["bbsindex.html"].Execute(w, &bbsindex)
-}
-
-func generateBbsIndex(brd pttbbs.Board, page int) (bbsindex *cache.BbsIndex, err error) {
-	bbsindex = &cache.BbsIndex{
-		Board:   brd,
-		IsValid: true,
-	}
-
-	count, err := ptt.GetArticleCount(brd.Bid)
-	if err != nil {
-		return nil, err
-	}
-
-	// Handle paging
-	paging := NewPaging(20, count)
-	if page == 0 {
-		page = paging.LastPageNo()
-		paging.SetPageNo(page)
-	} else if err = paging.SetPageNo(page); err != nil {
-		return nil, err
-	}
-	bbsindex.TotalPage = paging.LastPageNo()
-
-	// Fetch article list
-	bbsindex.Articles, err = ptt.GetArticleList(brd.Bid, paging.Cursor())
-	if err != nil {
-		return nil, err
-	}
-
-	// Page links
-	if page > 1 {
-		bbsindex.HasPrevPage = true
-		bbsindex.PrevPage = page - 1
-	}
-	if page < paging.LastPageNo() {
-		bbsindex.HasNextPage = true
-		bbsindex.NextPage = page + 1
-	}
-
-	return bbsindex, nil
 }
 
 func handleArticle(w http.ResponseWriter, r *http.Request) error {
@@ -342,23 +286,11 @@ func handleArticle(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	// Render content
-	resultChan := cacheMgr.Get(
-		fmt.Sprintf("pttweb:bbs/%s/%s", brd.BrdName, filename),
-		func(key string) (res cache.Result) {
-			a := generateArticle(bid, filename)
-			res.Expire = ArticleCacheTimeout
-			res.Output, res.Err = a.EncodeToBytes()
-			if res.Err != nil {
-				res.Output = nil
-			}
-			return
-		})
-
-	result := <-resultChan
-	var ar cache.Article
-	if err = cache.GobDecode(result.Output, &ar); err != nil {
-		return err
-	}
+	obj, err := cacheMgr.Get(&ArticleRequest{
+		Brd:      brd,
+		Filename: filename,
+	}, ZeroArticle, ArticleCacheTimeout, generateArticle)
+	ar := obj.(*Article)
 
 	if !ar.IsValid {
 		return handleNotFound(w, r)
@@ -370,23 +302,6 @@ func handleArticle(w http.ResponseWriter, r *http.Request) error {
 		"Board":       brd,
 		"ContentHtml": string(ar.ContentHtml),
 	})
-}
-
-func generateArticle(bid int, filename string) (a cache.Article) {
-	content, err := ptt.GetArticleContent(bid, filename)
-	if err != nil || content == nil {
-		return
-	}
-
-	ar := article.NewRenderer()
-	buf, err := ar.Render(content)
-	if err == nil {
-		a.ParsedTitle = ar.ParsedTitle()
-		a.PreviewContent = ar.PreviewContent()
-		a.ContentHtml = buf.Bytes()
-		a.IsValid = true
-	}
-	return
 }
 
 func hasPermViewBoard(brd pttbbs.Board) error {
