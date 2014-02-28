@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -25,6 +26,10 @@ import (
 const (
 	ArticleCacheTimeout  = time.Minute * 10
 	BbsIndexCacheTimeout = time.Minute * 5
+)
+
+var (
+	ErrOver18CookieNotEnabled = errors.New("board is over18 but cookie not enabled")
 )
 
 var ptt pttbbs.Pttbbs
@@ -125,6 +130,7 @@ func createRouter() *mux.Router {
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/index.html`, errorWrapperHandler(handleBbs)).Name("bbsindex")
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/index{page:\d+}.html`, errorWrapperHandler(handleBbs)).Name("bbsindex_page")
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/{filename:[MG]\.\d+\.A(\.[0-9A-F]+)?}.html`, errorWrapperHandler(handleArticle)).Name("bbsarticle")
+	router.HandleFunc(`/ask/over18`, errorWrapperHandler(handleAskOver18)).Name("askover18")
 	return router
 }
 
@@ -144,6 +150,9 @@ func templateFuncMap() template.FuncMap {
 		},
 		"route_bbsarticle": func(brdname, filename string) (*url.URL, error) {
 			return router.Get("bbsarticle").URLPath("brdname", brdname, "filename", filename)
+		},
+		"route_askover18": func() (*url.URL, error) {
+			return router.Get("askover18").URLPath()
 		},
 		"route": func(where string, attrs ...string) (*url.URL, error) {
 			return router.Get(where).URLPath(attrs...)
@@ -168,23 +177,70 @@ func setCommonResponseHeaders(w http.ResponseWriter) {
 	h.Set("Content-Type", "text/html; charset=utf-8")
 }
 
-func errorWrapperHandler(f func(http.ResponseWriter, *http.Request) error) func(http.ResponseWriter, *http.Request) {
+type ErrorPageCapable interface {
+	EmitErrorPage(w http.ResponseWriter, r *http.Request) error
+}
+
+func errorWrapperHandler(f func(*Context, http.ResponseWriter) error) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setCommonResponseHeaders(w)
-		if err := f(w, r); err != nil {
+
+		if err := handleRequest(w, r, f); err != nil {
+			if errpage, ok := err.(ErrorPageCapable); ok {
+				if err = errpage.EmitErrorPage(w, r); err != nil {
+					log.Println("Failed to emit error page:", err)
+				} else {
+					log.Println("Emit error page for:", errpage)
+				}
+				return
+			}
 			log.Println(err)
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
 }
 
-func handleNotFound(w http.ResponseWriter, r *http.Request) error {
-	w.WriteHeader(http.StatusNotFound)
-	return tmpl["notfound.html"].Execute(w, nil)
+func handleRequest(w http.ResponseWriter, r *http.Request, f func(*Context, http.ResponseWriter) error) error {
+	c := new(Context)
+	if err := c.MergeFromRequest(r); err != nil {
+		return err
+	}
+
+	if err := f(c, w); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func handleCls(w http.ResponseWriter, r *http.Request) error {
-	vars := mux.Vars(r)
+func handleNotFound(c *Context, w http.ResponseWriter) error {
+	return NewNotFoundErrorPage(nil)
+}
+
+func handleAskOver18(c *Context, w http.ResponseWriter) error {
+	from := c.R.FormValue("from")
+	if from == "" {
+		from = "/"
+	}
+
+	if c.R.Method == "POST" {
+		if c.R.PostFormValue("yes") != "" {
+			setOver18Cookie(w)
+			w.Header().Set("Location", from)
+		} else {
+			w.Header().Set("Location", "/")
+		}
+		w.WriteHeader(http.StatusFound)
+		return nil
+	} else {
+		return tmpl["askover18.html"].Execute(w, map[string]interface{}{
+			"From": from,
+		})
+	}
+}
+
+func handleCls(c *Context, w http.ResponseWriter) error {
+	vars := mux.Vars(c.R)
 	bid, err := strconv.Atoi(vars["bid"])
 	if err != nil {
 		return err
@@ -209,8 +265,8 @@ func handleCls(w http.ResponseWriter, r *http.Request) error {
 	})
 }
 
-func handleBbsIndexRedirect(w http.ResponseWriter, r *http.Request) error {
-	vars := mux.Vars(r)
+func handleBbsIndexRedirect(c *Context, w http.ResponseWriter) error {
+	vars := mux.Vars(c.R)
 	if url, err := router.Get("bbsindex").URLPath("brdname", vars["brdname"]); err != nil {
 		return err
 	} else {
@@ -220,8 +276,8 @@ func handleBbsIndexRedirect(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func handleBbs(w http.ResponseWriter, r *http.Request) error {
-	vars := mux.Vars(r)
+func handleBbs(c *Context, w http.ResponseWriter) error {
+	vars := mux.Vars(c.R)
 	brdname := vars["brdname"]
 	page := 0
 
@@ -231,26 +287,13 @@ func handleBbs(w http.ResponseWriter, r *http.Request) error {
 
 	var err error
 
-	bid, err := ptt.BrdName2Bid(brdname)
+	brd, err := getBoardByName(c, brdname)
 	if err != nil {
-		log.Println("BrdName2Bid", brdname, err)
-		return handleNotFound(w, r)
-	}
-
-	brd, err := ptt.GetBoard(bid)
-	if err != nil {
-		log.Println("GetBoard", bid, err)
-		return handleNotFound(w, r)
-	}
-
-	err = hasPermViewBoard(brd)
-	if err != nil {
-		log.Println("hasPermViewBoard", brd.BrdName, err)
-		return handleNotFound(w, r)
+		return err
 	}
 
 	obj, err := cacheMgr.Get(&BbsIndexRequest{
-		Brd:  brd,
+		Brd:  *brd,
 		Page: page,
 	}, ZeroBbsIndex, BbsIndexCacheTimeout, generateBbsIndex)
 	if err != nil {
@@ -259,38 +302,27 @@ func handleBbs(w http.ResponseWriter, r *http.Request) error {
 	bbsindex := obj.(*BbsIndex)
 
 	if !bbsindex.IsValid {
-		log.Println("Not a valid cache.BbsIndex", brd.BrdName, page)
-		return handleNotFound(w, r)
+		return NewNotFoundErrorPage(fmt.Errorf("not a valid cache.BbsIndex: %v/%v", brd.BrdName, page))
 	}
 
 	return tmpl["bbsindex.html"].Execute(w, &bbsindex)
 }
 
-func handleArticle(w http.ResponseWriter, r *http.Request) error {
-	vars := mux.Vars(r)
+func handleArticle(c *Context, w http.ResponseWriter) error {
+	vars := mux.Vars(c.R)
 	brdname := vars["brdname"]
 	filename := vars["filename"]
 
 	var err error
 
-	bid, err := ptt.BrdName2Bid(brdname)
-	if err != nil {
-		return err
-	}
-
-	brd, err := ptt.GetBoard(bid)
-	if err != nil {
-		return err
-	}
-
-	err = hasPermViewBoard(brd)
+	brd, err := getBoardByName(c, brdname)
 	if err != nil {
 		return err
 	}
 
 	// Render content
 	obj, err := cacheMgr.Get(&ArticleRequest{
-		Brd:      brd,
+		Brd:      *brd,
 		Filename: filename,
 	}, ZeroArticle, ArticleCacheTimeout, generateArticle)
 	if err != nil {
@@ -299,7 +331,7 @@ func handleArticle(w http.ResponseWriter, r *http.Request) error {
 	ar := obj.(*Article)
 
 	if !ar.IsValid {
-		return handleNotFound(w, r)
+		return handleNotFound(c, w)
 	}
 
 	return tmpl["bbsarticle.html"].Execute(w, map[string]interface{}{
@@ -310,11 +342,50 @@ func handleArticle(w http.ResponseWriter, r *http.Request) error {
 	})
 }
 
-func hasPermViewBoard(brd pttbbs.Board) error {
-	if !pttbbs.IsValidBrdName(brd.BrdName) || brd.Over18 || brd.Hidden {
-		return fmt.Errorf("No permission: %s", brd.BrdName)
+func getBoardByName(c *Context, brdname string) (*pttbbs.Board, error) {
+	bid, err := ptt.BrdName2Bid(brdname)
+	if err != nil {
+		return nil, NewNotFoundErrorPage(err)
+	}
+
+	brd, err := ptt.GetBoard(bid)
+	if err != nil {
+		return nil, err
+	}
+
+	err = hasPermViewBoard(c, brd)
+	if err != nil {
+		return nil, err
+	}
+
+	return &brd, nil
+}
+
+func hasPermViewBoard(c *Context, brd pttbbs.Board) error {
+	if !pttbbs.IsValidBrdName(brd.BrdName) || brd.Hidden {
+		return NewNotFoundErrorPage(fmt.Errorf("no permission: %s", brd.BrdName))
+	}
+	if brd.Over18 {
+		if config.EnableOver18Cookie {
+			if !c.IsOver18() {
+				return errorRedirectAskOver18(c)
+			}
+		} else {
+			return NewNotFoundErrorPage(ErrOver18CookieNotEnabled)
+		}
 	}
 	return nil
+}
+
+func errorRedirectAskOver18(c *Context) error {
+	q := make(url.Values)
+	q.Set("from", c.R.URL.String())
+
+	u, _ := router.Get("askover18").URLPath()
+
+	return &RedirectErrorPage{
+		To: u.String() + "?" + q.Encode(),
+	}
 }
 
 func boardlist(ptt pttbbs.Pttbbs, indent string, root int, loop map[int]bool) {

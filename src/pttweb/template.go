@@ -14,6 +14,7 @@ var (
 		{"classlist.html", "layout.html", "common.html"},
 		{"bbsindex.html", "layout.html", "common.html"},
 		{"bbsarticle.html", "layout.html", "common.html"},
+		{"askover18.html", "layout.html", "common.html"},
 	}
 )
 

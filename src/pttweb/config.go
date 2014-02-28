@@ -9,4 +9,6 @@ type PttwebConfig struct {
 
 	GAAccount string
 	GADomain  string
+
+	EnableOver18Cookie bool
 }
