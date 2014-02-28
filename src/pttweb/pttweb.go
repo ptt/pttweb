@@ -253,6 +253,9 @@ func handleBbs(w http.ResponseWriter, r *http.Request) error {
 		Brd:  brd,
 		Page: page,
 	}, ZeroBbsIndex, BbsIndexCacheTimeout, generateBbsIndex)
+	if err != nil {
+		return err
+	}
 	bbsindex := obj.(*BbsIndex)
 
 	if !bbsindex.IsValid {
@@ -290,6 +293,9 @@ func handleArticle(w http.ResponseWriter, r *http.Request) error {
 		Brd:      brd,
 		Filename: filename,
 	}, ZeroArticle, ArticleCacheTimeout, generateArticle)
+	if err != nil {
+		return err
+	}
 	ar := obj.(*Article)
 
 	if !ar.IsValid {
