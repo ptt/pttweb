@@ -80,7 +80,7 @@ func generateArticle(key cache.Key) (cache.Cacheable, error) {
 	if err != nil {
 		return nil, err
 	} else if content == nil {
-		return nil, fmt.Errorf("no content: %v/%v", r.Brd.BrdName, r.Filename)
+		return nil, NewNotFoundErrorPage(fmt.Errorf("no content: %v/%v", r.Brd.BrdName, r.Filename))
 	}
 
 	ar := article.NewRenderer()
