@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 
 	"pttbbs"
@@ -81,7 +80,7 @@ func generateArticle(key cache.Key) (cache.Cacheable, error) {
 	if err != nil {
 		return nil, err
 	} else if content == nil {
-		return nil, errors.New("no content")
+		return nil, fmt.Errorf("no content: %v/%v", r.Brd.BrdName, r.Filename)
 	}
 
 	ar := article.NewRenderer()
