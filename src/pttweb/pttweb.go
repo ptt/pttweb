@@ -219,7 +219,7 @@ func handleNotFound(c *Context, w http.ResponseWriter) error {
 
 func handleAskOver18(c *Context, w http.ResponseWriter) error {
 	from := c.R.FormValue("from")
-	if from == "" {
+	if from == "" || !isSafeRedirectURI(from) {
 		from = "/"
 	}
 

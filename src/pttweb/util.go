@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 )
 
 type RedirectErrorPage struct {
@@ -36,4 +37,12 @@ func NewNotFoundErrorPage(err error) *NotFoundErrorPage {
 	return &NotFoundErrorPage{
 		Err: err,
 	}
+}
+
+func isSafeRedirectURI(uri string) bool {
+	if len(uri) < 1 || uri[0] != '/' {
+		return false
+	}
+	u, err := url.Parse(uri)
+	return err == nil && u.Scheme == "" && u.User == nil && u.Host == ""
 }
