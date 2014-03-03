@@ -68,7 +68,7 @@ func (m *CacheManager) doGenerate(key Key, keyString string, expire time.Duratio
 	obj, err := generate(key)
 	if err == nil {
 		// There is no errors during generating, store result in cache
-		if data, err := obj.EncodeToBytes(); err != nil {
+		if data, err := obj.EncodeToBytes(); err == nil {
 			m.storeResultCache(keyString, data, expire)
 		}
 	}
