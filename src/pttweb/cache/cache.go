@@ -1,9 +1,11 @@
 package cache
 
 import (
-	"pttbbs"
+	"errors"
 	"sync"
 	"time"
+
+	"pttbbs"
 )
 
 type Key interface {
@@ -111,8 +113,13 @@ func (m *CacheManager) getFromCache(key string) ([]byte, error) {
 	}
 	defer m.connPool.ReleaseConn(memd, err)
 
-	data, _, err := memd.Get(key)
-	return data, err
+	res, err := memd.Get(key)
+	if err != nil {
+		return nil, err
+	} else if len(res) != 1 {
+		return nil, errors.New("cannot fetch cache")
+	}
+	return res[0].Value, nil
 }
 
 func (m *CacheManager) storeResultCache(key string, data []byte, expire time.Duration) error {

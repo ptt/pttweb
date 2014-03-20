@@ -2,17 +2,20 @@ package pttbbs
 
 import (
 	"bytes"
-	"code.google.com/p/vitess/go/memcache"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+
+	"code.google.com/p/vitess/go/memcache"
 )
 
 var (
-	ErrInvalidArticleLine   = errors.New("Article line format error")
-	ErrAttributeFetchFailed = errors.New("Cannot fetch some attributes")
-	ErrUnknownValueType     = errors.New("Unknown value type")
+	ErrInvalidArticleLine   = errors.New("article line format error")
+	ErrAttributeFetchFailed = errors.New("cannot fetch some attributes")
+	ErrUnknownValueType     = errors.New("unknown value type")
+	ErrArgumentCount        = errors.New("invalid argument count")
+	ErrResultCountMismatch  = errors.New("result count returned from memcached mismatch")
 )
 
 type RemotePtt struct {
@@ -33,6 +36,10 @@ func key(bid int, attr string) string {
 }
 
 func (p *RemotePtt) queryMemd(types string, keyvalue ...interface{}) (int, error) {
+	if 2*len(types) != len(keyvalue) {
+		return 0, ErrArgumentCount
+	}
+
 	var err error
 	var memd *memcache.Connection
 	if memd, err = p.connPool.GetConn(); err != nil {
@@ -42,31 +49,35 @@ func (p *RemotePtt) queryMemd(types string, keyvalue ...interface{}) (int, error
 		p.connPool.ReleaseConn(memd, err)
 	}()
 
-	j := 0
-	for i, t := range types {
-		var result []byte
-		key := keyvalue[j].(string)
-		val := keyvalue[j+1]
-		switch t {
+	// Prepare keys to fetch in batch
+	keys := make([]string, len(types))
+	for i := range keys {
+		keys[i] = keyvalue[2*i].(string)
+	}
+
+	res, err := memd.Get(keys...)
+	if err != nil {
+		return 0, err
+	} else if len(res) != len(keys) {
+		return 0, ErrResultCountMismatch
+	}
+
+	// Put results back
+	for i, r := range res {
+		val := keyvalue[2*i+1]
+		switch types[i] {
 		case 's':
-			if result, _, err = memd.Get(key); err == nil {
-				*val.(*string) = string(result)
-			}
+			*val.(*string) = string(r.Value)
 		case 'i':
-			if result, _, err = memd.Get(key); err == nil {
-				*val.(*int), err = strconv.Atoi(string(result))
-			}
+			*val.(*int), err = strconv.Atoi(string(r.Value))
 		case 'b':
-			if result, _, err = memd.Get(key); err == nil {
-				*val.(*[]byte) = result
-			}
+			*val.(*[]byte) = r.Value
 		default:
 			return i, ErrUnknownValueType
 		}
 		if err != nil {
 			return i, err
 		}
-		j += 2
 	}
 
 	return len(types), nil
