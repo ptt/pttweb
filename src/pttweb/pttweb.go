@@ -367,7 +367,9 @@ func hasPermViewBoard(c *Context, brd pttbbs.Board) error {
 	}
 	if brd.Over18 {
 		if config.EnableOver18Cookie {
-			if !c.IsOver18() {
+			if c.IsCrawler() {
+				// Crawlers don't have age
+			} else if !c.IsOver18() {
 				return errorRedirectAskOver18(c)
 			}
 		} else {
