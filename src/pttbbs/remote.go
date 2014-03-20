@@ -58,29 +58,50 @@ func (p *RemotePtt) queryMemd(types string, keyvalue ...interface{}) (int, error
 	res, err := memd.Get(keys...)
 	if err != nil {
 		return 0, err
-	} else if len(res) != len(keys) {
-		return 0, ErrResultCountMismatch
 	}
 
 	// Put results back
-	for i, r := range res {
-		val := keyvalue[2*i+1]
-		switch types[i] {
-		case 's':
-			*val.(*string) = string(r.Value)
-		case 'i':
-			*val.(*int), err = strconv.Atoi(string(r.Value))
-		case 'b':
-			*val.(*[]byte) = r.Value
-		default:
-			return i, ErrUnknownValueType
+	j := 0
+	for i, key := range keys {
+		var val []byte
+		if j < len(res) && key == res[j].Key {
+			// Consume the result
+			val = res[j].Value
+			j++
 		}
-		if err != nil {
+		if err = setVal(types[i], keyvalue[2*i+1], val); err != nil {
 			return i, err
 		}
 	}
 
 	return len(types), nil
+}
+
+func setVal(t uint8, dst interface{}, src []byte) (err error) {
+	if src != nil {
+		switch t {
+		case 's':
+			*dst.(*string) = string(src)
+		case 'i':
+			*dst.(*int), err = strconv.Atoi(string(src))
+		case 'b':
+			*dst.(*[]byte) = src
+		default:
+			err = ErrUnknownValueType
+		}
+	} else {
+		switch t {
+		case 's':
+			*dst.(*string) = ""
+		case 'i':
+			*dst.(*int) = 0
+		case 'b':
+			*dst.(*[]byte) = nil
+		default:
+			err = ErrUnknownValueType
+		}
+	}
+	return
 }
 
 func (p *RemotePtt) GetBoardChildren(bid int) (children []int, err error) {
