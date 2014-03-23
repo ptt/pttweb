@@ -12,6 +12,7 @@ var (
 		"bingbot",
 		"MSNbot",
 		"facebookexternalhit",
+		"PlurkBot",
 	}
 )
 
