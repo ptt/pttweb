@@ -1,9 +1,10 @@
 package pttbbs
 
 import (
-	"code.google.com/p/vitess/go/memcache"
 	"log"
 	"time"
+
+	"code.google.com/p/vitess/go/memcache"
 )
 
 type MemcacheConnPool struct {
