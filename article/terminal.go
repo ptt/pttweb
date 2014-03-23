@@ -1,7 +1,7 @@
 package article
 
 import (
-	"ansi"
+	"github.com/ptt/pttweb/ansi"
 )
 
 // Flags

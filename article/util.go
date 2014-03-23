@@ -3,7 +3,8 @@ package article
 import (
 	"bytes"
 	"html"
-	"pttbbs"
+
+	"github.com/ptt/pttweb/pttbbs"
 )
 
 func fastWriteHtmlEscapedRune(buf *bytes.Buffer, ru rune) {

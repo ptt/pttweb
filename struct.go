@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/gob"
 
-	"pttbbs"
-	"pttweb/cache"
+	"github.com/ptt/pttweb/cache"
+	"github.com/ptt/pttweb/pttbbs"
 )
 
 // Useful when calling |NewFromBytes|

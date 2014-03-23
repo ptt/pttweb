@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"pttbbs"
+	"github.com/ptt/pttweb/pttbbs"
 )
 
 type Key interface {

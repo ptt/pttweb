@@ -17,8 +17,8 @@ import (
 	"text/template"
 	"time"
 
-	"pttbbs"
-	"pttweb/cache"
+	"github.com/ptt/pttweb/cache"
+	"github.com/ptt/pttweb/pttbbs"
 
 	"github.com/gorilla/mux"
 )

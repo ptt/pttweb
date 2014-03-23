@@ -1,8 +1,9 @@
 package main
 
 import (
-	"pttbbs"
 	"strconv"
+
+	"github.com/ptt/pttweb/pttbbs"
 )
 
 func colored_counter(num int) string {

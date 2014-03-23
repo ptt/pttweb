@@ -1,9 +1,10 @@
 package article
 
 import (
-	"ansi"
 	"bytes"
-	"pttbbs"
+
+	"github.com/ptt/pttweb/ansi"
+	"github.com/ptt/pttweb/pttbbs"
 )
 
 const (

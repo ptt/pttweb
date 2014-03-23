@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 
-	"pttbbs"
-	"pttweb/article"
-	"pttweb/cache"
+	"github.com/ptt/pttweb/article"
+	"github.com/ptt/pttweb/cache"
+	"github.com/ptt/pttweb/pttbbs"
 )
 
 const (
