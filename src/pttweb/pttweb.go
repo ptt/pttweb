@@ -24,8 +24,9 @@ import (
 )
 
 const (
-	ArticleCacheTimeout  = time.Minute * 10
-	BbsIndexCacheTimeout = time.Minute * 5
+	ArticleCacheTimeout          = time.Minute * 10
+	BbsIndexCacheTimeout         = time.Minute * 5
+	BbsIndexLastPageCacheTimeout = time.Minute * 1
 )
 
 var (
@@ -279,10 +280,15 @@ func handleBbsIndexRedirect(c *Context, w http.ResponseWriter) error {
 func handleBbs(c *Context, w http.ResponseWriter) error {
 	vars := mux.Vars(c.R)
 	brdname := vars["brdname"]
+
+	// Note: TODO move timeout into the generating function.
+	// We don't know if it is the last page without entry count.
 	page := 0
+	timeout := BbsIndexLastPageCacheTimeout
 
 	if pg, err := strconv.Atoi(vars["page"]); err == nil {
 		page = pg
+		timeout = BbsIndexCacheTimeout
 	}
 
 	var err error
@@ -295,7 +301,7 @@ func handleBbs(c *Context, w http.ResponseWriter) error {
 	obj, err := cacheMgr.Get(&BbsIndexRequest{
 		Brd:  *brd,
 		Page: page,
-	}, ZeroBbsIndex, BbsIndexCacheTimeout, generateBbsIndex)
+	}, ZeroBbsIndex, timeout, generateBbsIndex)
 	if err != nil {
 		return err
 	}
