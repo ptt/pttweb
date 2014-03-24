@@ -190,8 +190,6 @@ func errorWrapperHandler(f func(*Context, http.ResponseWriter) error) func(http.
 			if errpage, ok := err.(ErrorPageCapable); ok {
 				if err = errpage.EmitErrorPage(w, r); err != nil {
 					log.Println("Failed to emit error page:", err)
-				} else {
-					log.Println("Emit error page for:", errpage)
 				}
 				return
 			}
