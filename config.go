@@ -7,6 +7,9 @@ type PttwebConfig struct {
 	TemplateDirectory string
 	StaticPrefix      string
 
+	BoarddMaxConn    int
+	MemcachedMaxConn int
+
 	GAAccount string
 	GADomain  string
 

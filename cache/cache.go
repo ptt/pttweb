@@ -38,10 +38,10 @@ type CacheManager struct {
 	pending map[string][]resultChan
 }
 
-func NewCacheManager(server string) *CacheManager {
+func NewCacheManager(server string, maxOpen int) *CacheManager {
 	return &CacheManager{
 		server:   server,
-		connPool: pttbbs.NewMemcacheConnPool(server, 8),
+		connPool: pttbbs.NewMemcacheConnPool(server, maxOpen),
 		pending:  make(map[string][]resultChan),
 	}
 }

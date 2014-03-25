@@ -24,10 +24,10 @@ type RemotePtt struct {
 	connPool *MemcacheConnPool
 }
 
-func NewRemotePtt(boarddAddr string) *RemotePtt {
+func NewRemotePtt(boarddAddr string, maxOpen int) *RemotePtt {
 	return &RemotePtt{
 		BoarddAddr: boarddAddr,
-		connPool:   NewMemcacheConnPool(boarddAddr, 16),
+		connPool:   NewMemcacheConnPool(boarddAddr, maxOpen),
 	}
 }
 

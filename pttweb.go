@@ -27,6 +27,9 @@ const (
 	ArticleCacheTimeout          = time.Minute * 10
 	BbsIndexCacheTimeout         = time.Minute * 5
 	BbsIndexLastPageCacheTimeout = time.Minute * 1
+
+	DefaultBoarddMaxConn    = 16
+	DefaultMemcachedMaxConn = 16
 )
 
 var (
@@ -59,27 +62,44 @@ func loadConfig() error {
 	return nil
 }
 
+func ensureConfig(c *PttwebConfig) error {
+	if c.BoarddAddress == "" {
+		return errors.New("boardd address not specified")
+	}
+
+	if c.MemcachedAddress == "" {
+		return errors.New("memcached address not specified")
+	}
+
+	if c.BoarddMaxConn <= 0 {
+		c.BoarddMaxConn = DefaultBoarddMaxConn
+	}
+
+	if c.MemcachedMaxConn <= 0 {
+		c.MemcachedMaxConn = DefaultMemcachedMaxConn
+	}
+
+	return nil
+}
+
 func main() {
 	flag.Parse()
 
 	if err := loadConfig(); err != nil {
-		log.Println("loadConfig() error:", err)
+		log.Println("loadConfig:", err)
+		return
+	}
+
+	if err := ensureConfig(&config); err != nil {
+		log.Println("ensureConfig:", err)
 		return
 	}
 
 	// Init RemotePtt
-	if config.BoarddAddress == "" {
-		log.Println("boardd address not specified")
-		return
-	}
-	ptt = pttbbs.NewRemotePtt(config.BoarddAddress)
+	ptt = pttbbs.NewRemotePtt(config.BoarddAddress, config.BoarddMaxConn)
 
 	// Init cache manager
-	if config.MemcachedAddress == "" {
-		log.Println("memcached address not specified")
-		return
-	}
-	cacheMgr = cache.NewCacheManager(config.MemcachedAddress)
+	cacheMgr = cache.NewCacheManager(config.MemcachedAddress, config.MemcachedMaxConn)
 
 	// Load templates
 	if t, err := loadTemplates(config.TemplateDirectory, templateFiles); err != nil {
