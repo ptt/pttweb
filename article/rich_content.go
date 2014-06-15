@@ -22,7 +22,6 @@ type UrlPattern struct {
 var urlPattern = regexp.MustCompile(`https?://[^\s]+`)
 var defaultPatterns = []*UrlPattern{
 	NewUrlPattern(`^https?://(?:www\.youtube\.com/watch\?(?:.+&)*v=|youtu\.be/)([\w\-]+)`, handleYoutube),
-	NewUrlPattern(`^http://v\.youku\.com/v_show/id_(\w+)\.html`, handleYouku),
 	NewUrlPattern(`^https?://imgur\.com/([,\w]+)(?:\#(\d+))?[^/]*$`, handleImgur),
 	NewUrlPattern(`^http://picmoe\.net/d\.php\?id=(\d+)`, handlePicmoe),
 	NewUrlPattern(`\.(?i:png|jpg|gif)$`, handleGenericImage),
@@ -69,18 +68,7 @@ func handleYoutube(urlBytes []byte, match [][]byte) ([]*RichContent, error) {
 		&RichContent{
 			URLString: string(match[0]),
 			ContentHtml: fmt.Sprintf(
-				`<iframe class="youtube-player" type="text/html" width="640" height="385" src="http://www.youtube.com/embed/%s" frameborder="0"></iframe>`,
-				string(match[1])),
-		},
-	}, nil
-}
-
-func handleYouku(urlBytes []byte, match [][]byte) ([]*RichContent, error) {
-	return []*RichContent{
-		&RichContent{
-			URLString: string(match[0]),
-			ContentHtml: fmt.Sprintf(
-				`<embed src="http://player.youku.com/player.php/sid/%s/v.swf" quality="high" width="480" height="400" align="middle" allowScriptAccess="sameDomain" allowFullscreen="true" type="application/x-shockwave-flash"></embed>`,
+				`<iframe class="youtube-player" type="text/html" width="640" height="385" src="//www.youtube.com/embed/%s" frameborder="0"></iframe>`,
 				string(match[1])),
 		},
 	}, nil
@@ -89,7 +77,7 @@ func handleYouku(urlBytes []byte, match [][]byte) ([]*RichContent, error) {
 func handleImgur(urlBytes []byte, match [][]byte) ([]*RichContent, error) {
 	rcs := make([]*RichContent, 0, 4)
 	for _, id := range strings.Split(string(match[1]), ",") {
-		link := fmt.Sprintf(`http://i.imgur.com/%s.jpg`, id)
+		link := fmt.Sprintf(`//i.imgur.com/%s.jpg`, id)
 		rcs = append(rcs, &RichContent{
 			URLString:   link,
 			ContentHtml: imageHtmlTag(link),
