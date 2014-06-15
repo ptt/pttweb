@@ -362,6 +362,7 @@ func handleArticle(c *Context, w http.ResponseWriter) error {
 		"Title":       ar.ParsedTitle,
 		"Description": ar.PreviewContent,
 		"Board":       brd,
+		"FileName":    filename,
 		"ContentHtml": string(ar.ContentHtml),
 	})
 }
