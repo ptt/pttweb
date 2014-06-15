@@ -367,12 +367,7 @@ func handleArticle(c *Context, w http.ResponseWriter) error {
 }
 
 func getBoardByName(c *Context, brdname string) (*pttbbs.Board, error) {
-	bid, err := ptt.BrdName2Bid(brdname)
-	if err != nil {
-		return nil, NewNotFoundErrorPage(err)
-	}
-
-	brd, err := ptt.GetBoard(bid)
+	brd, err := getBoardByNameCached(brdname)
 	if err != nil {
 		return nil, err
 	}
@@ -382,10 +377,10 @@ func getBoardByName(c *Context, brdname string) (*pttbbs.Board, error) {
 		return nil, err
 	}
 
-	return &brd, nil
+	return brd, nil
 }
 
-func hasPermViewBoard(c *Context, brd pttbbs.Board) error {
+func hasPermViewBoard(c *Context, brd *pttbbs.Board) error {
 	if !pttbbs.IsValidBrdName(brd.BrdName) || brd.Hidden {
 		return NewNotFoundErrorPage(fmt.Errorf("no permission: %s", brd.BrdName))
 	}
