@@ -1,10 +1,15 @@
 package pttbbs
 
 import (
+	"errors"
 	"log"
 	"time"
 
 	"code.google.com/p/vitess/go/memcache"
+)
+
+var (
+	ErrTooBusy = errors.New("conn pool too busy")
 )
 
 type MemcacheConnPool struct {
@@ -36,6 +41,9 @@ func NewMemcacheConnPool(server string, maxOpen int) *MemcacheConnPool {
 }
 
 func (m *MemcacheConnPool) GetConn() (*memcache.Connection, error) {
+	if m.nrWait > 2*m.maxOpen {
+		return nil, ErrTooBusy
+	}
 	var r connectResult
 	select {
 	case r = <-m.idle:
