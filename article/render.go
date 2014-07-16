@@ -255,28 +255,26 @@ func (r *Renderer) processNormalContentLine(line []byte) {
 		isPush = true
 	}
 
-	if urls := urlPattern.FindAllIndex(line, -1); urls != nil {
-		for _, u := range urls {
-			for i, n := 0, len(u); i < n; i += 2 {
-				urlString := string(line[u[i]:u[i+1]])
-				linkBegin, linkEnd := makeExternalUrlLink(urlString)
+	for _, u := range urlPattern.FindAllIndex(line, -1) {
+		for i, n := 0, len(u); i < n; i += 2 {
+			urlString := string(line[u[i]:u[i+1]])
+			linkBegin, linkEnd := makeExternalUrlLink(urlString)
 
-				begin := r.mapper.Get(u[i])
-				end := r.mapper.Get(u[i+1])
-				r.outputToSegment(begin[0], begin[1])
-				if begin[0] == end[0] {
-					// same segment: embed
-					r.buf.WriteString(linkBegin)
-					r.outputToSegment(end[0], end[1])
-					r.buf.WriteString(linkEnd)
-				} else {
-					// different segments: split, wrap-around
-					r.prematureCloseSegment()
-					r.buf.WriteString(linkBegin)
-					r.outputToSegment(end[0], end[1])
-					r.prematureCloseSegment()
-					r.buf.WriteString(linkEnd)
-				}
+			begin := r.mapper.Get(u[i])
+			end := r.mapper.Get(u[i+1])
+			r.outputToSegment(begin[0], begin[1])
+			if begin[0] == end[0] {
+				// same segment: embed
+				r.buf.WriteString(linkBegin)
+				r.outputToSegment(end[0], end[1])
+				r.buf.WriteString(linkEnd)
+			} else {
+				// different segments: split, wrap-around
+				r.prematureCloseSegment()
+				r.buf.WriteString(linkBegin)
+				r.outputToSegment(end[0], end[1])
+				r.prematureCloseSegment()
+				r.buf.WriteString(linkEnd)
 			}
 		}
 	}
