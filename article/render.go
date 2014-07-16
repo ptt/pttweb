@@ -72,12 +72,8 @@ func (r *Renderer) PreviewContent() string {
 
 func (r *Renderer) Render(content []byte) (*bytes.Buffer, error) {
 	converter := &ansi.AnsiParser{
-		Rune: func(ru rune) {
-			r.oneRune(ru)
-		},
-		Escape: func(esc ansi.EscapeSequence) {
-			r.escape(esc)
-		},
+		Rune:   r.oneRune,
+		Escape: r.escape,
 	}
 	if err := converter.ConvertFromUTF8(content); err != nil {
 		return nil, err
