@@ -19,7 +19,32 @@ type UrlPattern struct {
 	Handler UrlPatternHandler
 }
 
-var urlPattern = regexp.MustCompile(`https?://[^\s]+`)
+var urlPattern = regexp.MustCompile(`(?:^|[^a-zA-Z0-9\-_])(https?://[^\s]+)`)
+
+const urlPatternSubmatchIndex = 1
+
+func FindAllUrls(input []byte) [][]byte {
+	matches := urlPattern.FindAllSubmatch(input, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+
+	urls := make([][]byte, len(matches))
+	for i := range matches {
+		urls[i] = matches[i][urlPatternSubmatchIndex]
+	}
+	return urls
+}
+
+// [[start, end], [start, end], ...]
+func FindAllUrlsIndex(input []byte) [][]int {
+	matches := urlPattern.FindAllSubmatchIndex(input, -1)
+	for i := range matches {
+		matches[i] = matches[i][2*urlPatternSubmatchIndex : 2*urlPatternSubmatchIndex+2]
+	}
+	return matches
+}
+
 var defaultPatterns = []*UrlPattern{
 	NewUrlPattern(`^https?://(?:www\.youtube\.com/watch\?(?:.+&)*v=|youtu\.be/)([\w\-]+)`, handleYoutube),
 	NewUrlPattern(`^https?://imgur\.com/([,\w]+)(?:\#(\d+))?[^/]*$`, handleImgur),
@@ -34,17 +59,9 @@ func NewUrlPattern(pattern string, handler UrlPatternHandler) *UrlPattern {
 	}
 }
 
-func FindUrls(input []byte) [][]byte {
-	urls := urlPattern.FindAll(input, -1)
-	if urls == nil {
-		return [][]byte{}
-	}
-	return urls
-}
-
 func FindRichContents(input []byte) ([]*RichContent, error) {
 	rcs := make([]*RichContent, 0, 4)
-	for _, u := range FindUrls(input) {
+	for _, u := range FindAllUrls(input) {
 		for _, p := range defaultPatterns {
 			if match := p.Pattern.FindSubmatch(u); match != nil {
 				if rc, err := p.Handler(u, match); err == nil {
