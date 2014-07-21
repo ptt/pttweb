@@ -5,6 +5,8 @@ PTT BBS Web Frontend.
 
 In production on http://www.ptt.cc/
 
+[![Build Status](https://travis-ci.org/ptt/pttweb.svg?branch=master)](https://travis-ci.org/ptt/pttweb)
+
 Features
 --------
 
