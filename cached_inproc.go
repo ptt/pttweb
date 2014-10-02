@@ -53,10 +53,8 @@ func getBoardByNameCached(brdname string) (*pttbbs.Board, error) {
 	}
 
 	bid, err := ptt.BrdName2Bid(brdname)
-	if err == pttbbs.ErrTooBusy {
+	if err != nil {
 		return nil, err
-	} else if err != nil {
-		return nil, NewNotFoundErrorPage(err)
 	}
 
 	board, err := ptt.GetBoard(bid)

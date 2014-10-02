@@ -213,10 +213,18 @@ func errorWrapperHandler(f func(*Context, http.ResponseWriter) error) func(http.
 				}
 				return
 			}
-			log.Println(err)
-			w.WriteHeader(http.StatusInternalServerError)
+			emitErrorPage(w, err)
 		}
 	}
+}
+
+func emitErrorPage(w http.ResponseWriter, err error) {
+	log.Println(err)
+	w.WriteHeader(http.StatusInternalServerError)
+	tmpl["error.html"].Execute(w, map[string]interface{}{
+		"Title":       "500 - Internal Server Error",
+		"ContentHtml": "500 - Internal Server Error / Server Too Busy.",
+	})
 }
 
 func handleRequest(w http.ResponseWriter, r *http.Request, f func(*Context, http.ResponseWriter) error) error {

@@ -10,6 +10,7 @@ type TemplateMap map[string]*template.Template
 
 var (
 	templateFiles = [][]string{
+		{"error.html", "layout.html", "common.html"},
 		{"notfound.html", "layout.html", "common.html"},
 		{"classlist.html", "layout.html", "common.html"},
 		{"bbsindex.html", "layout.html", "common.html"},
