@@ -38,6 +38,7 @@ type Article struct {
 	ParsedTitle    string
 	PreviewContent string
 	ContentHtml    []byte
+	IsTruncated    bool
 
 	IsValid bool
 }

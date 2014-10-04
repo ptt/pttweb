@@ -366,12 +366,17 @@ func handleArticle(c *Context, w http.ResponseWriter) error {
 		return handleNotFound(c, w)
 	}
 
+	if len(ar.ContentHtml) > TruncateSize {
+		log.Println("Large rendered article:", brd.BrdName, filename, len(ar.ContentHtml))
+	}
+
 	return tmpl["bbsarticle.html"].Execute(w, map[string]interface{}{
-		"Title":       ar.ParsedTitle,
-		"Description": ar.PreviewContent,
-		"Board":       brd,
-		"FileName":    filename,
-		"ContentHtml": string(ar.ContentHtml),
+		"Title":            ar.ParsedTitle,
+		"Description":      ar.PreviewContent,
+		"Board":            brd,
+		"FileName":         filename,
+		"ContentHtml":      string(ar.ContentHtml),
+		"ContentTruncated": ar.IsTruncated,
 	})
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/ptt/pttweb/article"
 	"github.com/ptt/pttweb/cache"
@@ -64,6 +65,11 @@ func generateBbsIndex(key cache.Key) (cache.Cacheable, error) {
 	return bbsindex, nil
 }
 
+const (
+	TruncateSize    = 1048576
+	TruncateMaxScan = 1024
+)
+
 type ArticleRequest struct {
 	Brd      pttbbs.Board
 	Filename string
@@ -83,15 +89,34 @@ func generateArticle(key cache.Key) (cache.Cacheable, error) {
 		return nil, NewNotFoundErrorPage(fmt.Errorf("no content: %v/%v", r.Brd.BrdName, r.Filename))
 	}
 
+	a := new(Article)
+
+	if len(content) > TruncateSize {
+		log.Println("Large file:", key, len(content))
+		content = truncateLargeContent(content, TruncateSize, TruncateMaxScan)
+		a.IsTruncated = true
+	}
+
 	ar := article.NewRenderer()
 	buf, err := ar.Render(content)
 	if err != nil {
 		return nil, err
 	}
-	a := new(Article)
 	a.ParsedTitle = ar.ParsedTitle()
 	a.PreviewContent = ar.PreviewContent()
 	a.ContentHtml = buf.Bytes()
 	a.IsValid = true
 	return a, nil
+}
+
+func truncateLargeContent(content []byte, size, maxScan int) []byte {
+	if len(content) <= size {
+		return content
+	}
+	for i := size - 1; i >= size-maxScan && i >= 0; i-- {
+		if content[i] == '\n' {
+			return content[:i+1]
+		}
+	}
+	return content[:size]
 }
