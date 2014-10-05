@@ -35,10 +35,12 @@ func gobDecodeCacheable(data []byte, obj cache.Cacheable) (cache.Cacheable, erro
 }
 
 type Article struct {
-	ParsedTitle    string
-	PreviewContent string
-	ContentHtml    []byte
-	IsTruncated    bool
+	ParsedTitle     string
+	PreviewContent  string
+	ContentHtml     []byte
+	ContentTailHtml []byte
+	IsPartial       bool
+	IsTruncated     bool
 
 	IsValid bool
 }

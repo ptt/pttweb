@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/ptt/pttweb/article"
 	"github.com/ptt/pttweb/cache"
@@ -68,6 +67,9 @@ func generateBbsIndex(key cache.Key) (cache.Cacheable, error) {
 const (
 	TruncateSize    = 1048576
 	TruncateMaxScan = 1024
+
+	HeadSize = 100 * 1024
+	TailSize = 50 * 1024
 )
 
 type ArticleRequest struct {
@@ -82,23 +84,45 @@ func (r *ArticleRequest) String() string {
 func generateArticle(key cache.Key) (cache.Cacheable, error) {
 	r := key.(*ArticleRequest)
 
-	content, err := ptt.GetArticleContent(r.Brd.Bid, r.Filename)
+	p, err := ptt.GetArticleSelect(r.Brd.Bid, pttbbs.SelectHead, r.Filename, "", 0, HeadSize)
 	if err != nil {
 		return nil, err
-	} else if content == nil {
-		return nil, NewNotFoundErrorPage(fmt.Errorf("no content: %v/%v", r.Brd.BrdName, r.Filename))
+	}
+
+	// We don't want head and tail have duplicate content
+	if p.FileSize <= HeadSize+TailSize {
+		p, err = ptt.GetArticleSelect(r.Brd.Bid, pttbbs.SelectPart, r.Filename, "", 0, p.FileSize)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if len(p.Content) == 0 {
+		return nil, pttbbs.ErrNotFound
 	}
 
 	a := new(Article)
 
-	if len(content) > TruncateSize {
-		log.Println("Large file:", key, len(content))
-		content = truncateLargeContent(content, TruncateSize, TruncateMaxScan)
-		a.IsTruncated = true
+	a.IsPartial = p.Length < p.FileSize
+	a.IsTruncated = a.IsPartial
+
+	if a.IsPartial {
+		// Get and render tail
+		ptail, err := ptt.GetArticleSelect(r.Brd.Bid, pttbbs.SelectTail, r.Filename, "", -TailSize, TailSize)
+		if err != nil {
+			return nil, err
+		}
+		if len(ptail.Content) > 0 {
+			buf, err := article.NewRenderer().Render(ptail.Content)
+			if err != nil {
+				return nil, err
+			}
+			a.ContentTailHtml = buf.Bytes()
+		}
 	}
 
 	ar := article.NewRenderer()
-	buf, err := ar.Render(content)
+	buf, err := ar.Render(p.Content)
 	if err != nil {
 		return nil, err
 	}

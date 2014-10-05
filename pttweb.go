@@ -206,7 +206,7 @@ func errorWrapperHandler(f func(*Context, http.ResponseWriter) error) func(http.
 	return func(w http.ResponseWriter, r *http.Request) {
 		setCommonResponseHeaders(w)
 
-		if err := handleRequest(w, r, f); err != nil {
+		if err := clarifyRemoteError(handleRequest(w, r, f)); err != nil {
 			if errpage, ok := err.(ErrorPageCapable); ok {
 				if err = errpage.EmitErrorPage(w, r); err != nil {
 					log.Println("Failed to emit error page:", err)
@@ -376,6 +376,7 @@ func handleArticle(c *Context, w http.ResponseWriter) error {
 		"Board":            brd,
 		"FileName":         filename,
 		"ContentHtml":      string(ar.ContentHtml),
+		"ContentTailHtml":  string(ar.ContentTailHtml),
 		"ContentTruncated": ar.IsTruncated,
 	})
 }
@@ -421,6 +422,13 @@ func errorRedirectAskOver18(c *Context) error {
 	return &RedirectErrorPage{
 		To: u.String() + "?" + q.Encode(),
 	}
+}
+
+func clarifyRemoteError(err error) error {
+	if err == pttbbs.ErrNotFound {
+		return NewNotFoundErrorPage(err)
+	}
+	return err
 }
 
 func boardlist(ptt pttbbs.Pttbbs, indent string, root int, loop map[int]bool) {
