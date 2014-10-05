@@ -7,6 +7,7 @@ type Pttbbs interface {
 	GetArticleList(bid, offset int) ([]Article, error)
 	GetArticleContent(bid int, filename string) ([]byte, error)
 	BrdName2Bid(brdname string) (int, error)
+	GetArticleSelect(bid int, meth SelectMethod, filename, cacheKey string, offset, maxlen int) (*ArticlePart, error)
 }
 
 type Board struct {
@@ -31,6 +32,14 @@ type Article struct {
 	Title     string
 }
 
+type ArticlePart struct {
+	CacheKey string
+	FileSize int
+	Offset   int
+	Length   int
+	Content  []byte
+}
+
 // Non-mail file modes
 const (
 	FileLocal = 1 << iota
@@ -46,4 +55,12 @@ const (
 	_        // FileMarked
 	FileReplied
 	FileMulti
+)
+
+type SelectMethod string
+
+const (
+	SelectPart SelectMethod = `articlepart`
+	SelectHead              = `articlehead`
+	SelectTail              = `articletail`
 )

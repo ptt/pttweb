@@ -16,6 +16,9 @@ var (
 	ErrUnknownValueType     = errors.New("unknown value type")
 	ErrArgumentCount        = errors.New("invalid argument count")
 	ErrResultCountMismatch  = errors.New("result count returned from memcached mismatch")
+	ErrNoMetaLine           = errors.New("no meta line in result")
+	ErrMetaLineFormat       = errors.New("meta line format error")
+	ErrNotFound             = errors.New("not found")
 )
 
 type RemotePtt struct {
@@ -198,4 +201,52 @@ func (p *RemotePtt) GetArticleContent(bid int, filename string) (content []byte,
 func (p *RemotePtt) BrdName2Bid(brdname string) (bid int, err error) {
 	_, err = p.queryMemd("i", "tobid."+brdname, &bid)
 	return
+}
+
+func parseMetaLine(p *ArticlePart, line string) (err error) {
+	comp := strings.Split(line, ",")
+	if len(comp) != 4 {
+		return ErrMetaLineFormat
+	}
+	p.CacheKey = comp[0]
+	p.FileSize, err = strconv.Atoi(comp[1])
+	if err != nil {
+		return
+	}
+	p.Offset, err = strconv.Atoi(comp[2])
+	if err != nil {
+		return
+	}
+	p.Length, err = strconv.Atoi(comp[3])
+	if err != nil {
+		return
+	}
+	return
+}
+
+func (p *RemotePtt) GetArticleSelect(bid int, meth SelectMethod, filename, cacheKey string, offset, maxlen int) (*ArticlePart, error) {
+	var res []byte
+	var metaLen int
+	_, err := p.queryMemd("b", fmt.Sprintf("%v.%v.%v.%v.%v.%v", bid, string(meth), cacheKey, offset, maxlen, filename), &res)
+	if err != nil {
+		return nil, err
+	}
+	if len(res) == 0 {
+		return nil, ErrNotFound
+	}
+	for i, ch := range res {
+		if ch == '\n' {
+			metaLen = i
+			break
+		}
+	}
+	if metaLen == 0 {
+		return nil, ErrNoMetaLine
+	}
+	part := new(ArticlePart)
+	if err := parseMetaLine(part, string(res[:metaLen])); err != nil {
+		return nil, err
+	}
+	part.Content = res[metaLen+1:]
+	return part, nil
 }
