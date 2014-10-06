@@ -12,6 +12,8 @@ const (
 )
 
 type Renderer struct {
+	DisableArticleHeader bool
+
 	buf    bytes.Buffer
 	lineNo int
 
@@ -197,7 +199,7 @@ func (r *Renderer) endOfLine() {
 	line := r.lineBuf.Bytes()
 	parsed := false
 
-	if r.acceptMetaLines && r.lineNo < 5 {
+	if !r.DisableArticleHeader && r.acceptMetaLines && r.lineNo < 5 {
 		if r.lineNo == 1 && r.matchFirstLineAndOutput(line) {
 			parsed = true
 		} else if tag, val, ok := pttbbs.ParseArticleMetaLine(line); ok {

@@ -113,7 +113,9 @@ func generateArticle(key cache.Key) (cache.Cacheable, error) {
 			return nil, err
 		}
 		if len(ptail.Content) > 0 {
-			buf, err := article.NewRenderer().Render(ptail.Content)
+			ar := article.NewRenderer()
+			ar.DisableArticleHeader = true
+			buf, err := ar.Render(ptail.Content)
 			if err != nil {
 				return nil, err
 			}
