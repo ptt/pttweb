@@ -5,7 +5,7 @@ import (
 	"encoding/gob"
 
 	"github.com/ptt/pttweb/cache"
-	"github.com/ptt/pttweb/pttbbs"
+	"github.com/ptt/pttweb/page"
 )
 
 // Useful when calling |NewFromBytes|
@@ -53,19 +53,7 @@ func (a *Article) EncodeToBytes() ([]byte, error) {
 	return gobEncodeBytes(a)
 }
 
-type BbsIndex struct {
-	Board pttbbs.Board
-
-	HasPrevPage bool
-	HasNextPage bool
-	PrevPage    int
-	NextPage    int
-	TotalPage   int
-
-	Articles []pttbbs.Article
-
-	IsValid bool
-}
+type BbsIndex page.BbsIndex
 
 func (_ *BbsIndex) NewFromBytes(data []byte) (cache.Cacheable, error) {
 	return gobDecodeCacheable(data, new(BbsIndex))

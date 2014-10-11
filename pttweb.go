@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/ptt/pttweb/cache"
+	"github.com/ptt/pttweb/page"
 	"github.com/ptt/pttweb/pttbbs"
 
 	"github.com/gorilla/mux"
@@ -38,7 +39,6 @@ var (
 
 var ptt pttbbs.Pttbbs
 var router *mux.Router
-var tmpl TemplateMap
 var cacheMgr *cache.CacheManager
 
 var configPath string
@@ -86,13 +86,11 @@ func main() {
 	flag.Parse()
 
 	if err := loadConfig(); err != nil {
-		log.Println("loadConfig:", err)
-		return
+		log.Fatal("loadConfig:", err)
 	}
 
 	if err := ensureConfig(&config); err != nil {
-		log.Println("ensureConfig:", err)
-		return
+		log.Fatal("ensureConfig:", err)
 	}
 
 	// Init RemotePtt
@@ -102,11 +100,8 @@ func main() {
 	cacheMgr = cache.NewCacheManager(config.MemcachedAddress, config.MemcachedMaxConn)
 
 	// Load templates
-	if t, err := loadTemplates(config.TemplateDirectory, templateFiles); err != nil {
-		log.Println("cannot load templates:", err)
-		return
-	} else {
-		tmpl = t
+	if err := page.LoadTemplates(config.TemplateDirectory, templateFuncMap()); err != nil {
+		log.Fatal("cannot load templates:", err)
 	}
 
 	// Init router
@@ -115,17 +110,14 @@ func main() {
 
 	if len(config.Bind) == 0 {
 		log.Fatal("No bind addresses specified in config")
-		os.Exit(1)
 	}
 	for _, addr := range config.Bind {
 		part := strings.SplitN(addr, ":", 2)
 		if len(part) != 2 {
 			log.Fatal("Invalid bind address: ", addr)
-			os.Exit(1)
 		}
 		if listener, err := net.Listen(part[0], part[1]); err != nil {
 			log.Fatal("Listen failed for address: ", addr, " error: ", err)
-			os.Exit(1)
 		} else {
 			if part[0] == "unix" {
 				os.Chmod(part[1], 0777)
@@ -198,32 +190,28 @@ func setCommonResponseHeaders(w http.ResponseWriter) {
 	h.Set("Content-Type", "text/html; charset=utf-8")
 }
 
-type ErrorPageCapable interface {
-	EmitErrorPage(w http.ResponseWriter, r *http.Request) error
-}
-
 func errorWrapperHandler(f func(*Context, http.ResponseWriter) error) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setCommonResponseHeaders(w)
 
 		if err := clarifyRemoteError(handleRequest(w, r, f)); err != nil {
-			if errpage, ok := err.(ErrorPageCapable); ok {
-				if err = errpage.EmitErrorPage(w, r); err != nil {
+			if pg, ok := err.(page.Page); ok {
+				if err = page.ExecutePage(w, pg); err != nil {
 					log.Println("Failed to emit error page:", err)
 				}
 				return
 			}
-			emitErrorPage(w, err)
+			internalError(w, err)
 		}
 	}
 }
 
-func emitErrorPage(w http.ResponseWriter, err error) {
+func internalError(w http.ResponseWriter, err error) {
 	log.Println(err)
 	w.WriteHeader(http.StatusInternalServerError)
-	tmpl["error.html"].Execute(w, map[string]interface{}{
-		"Title":       "500 - Internal Server Error",
-		"ContentHtml": "500 - Internal Server Error / Server Too Busy.",
+	page.ExecutePage(w, &page.Error{
+		Title:       `500 - Internal Server Error`,
+		ContentHtml: `500 - Internal Server Error / Server Too Busy.`,
 	})
 }
 
@@ -238,10 +226,6 @@ func handleRequest(w http.ResponseWriter, r *http.Request, f func(*Context, http
 	}
 
 	return nil
-}
-
-func handleNotFound(c *Context, w http.ResponseWriter) error {
-	return NewNotFoundErrorPage(nil)
 }
 
 func handleAskOver18(c *Context, w http.ResponseWriter) error {
@@ -260,8 +244,8 @@ func handleAskOver18(c *Context, w http.ResponseWriter) error {
 		w.WriteHeader(http.StatusFound)
 		return nil
 	} else {
-		return tmpl["askover18.html"].Execute(w, map[string]interface{}{
-			"From": from,
+		return page.ExecutePage(w, &page.AskOver18{
+			From: from,
 		})
 	}
 }
@@ -287,8 +271,8 @@ func handleCls(c *Context, w http.ResponseWriter) error {
 		}
 	}
 
-	return tmpl["classlist.html"].Execute(w, map[string]interface{}{
-		"Boards": boards,
+	return page.ExecutePage(w, &page.Classlist{
+		Boards: boards,
 	})
 }
 
@@ -309,11 +293,11 @@ func handleBbs(c *Context, w http.ResponseWriter) error {
 
 	// Note: TODO move timeout into the generating function.
 	// We don't know if it is the last page without entry count.
-	page := 0
+	pageNo := 0
 	timeout := BbsIndexLastPageCacheTimeout
 
 	if pg, err := strconv.Atoi(vars["page"]); err == nil {
-		page = pg
+		pageNo = pg
 		timeout = BbsIndexCacheTimeout
 	}
 
@@ -326,7 +310,7 @@ func handleBbs(c *Context, w http.ResponseWriter) error {
 
 	obj, err := cacheMgr.Get(&BbsIndexRequest{
 		Brd:  *brd,
-		Page: page,
+		Page: pageNo,
 	}, ZeroBbsIndex, timeout, generateBbsIndex)
 	if err != nil {
 		return err
@@ -334,10 +318,10 @@ func handleBbs(c *Context, w http.ResponseWriter) error {
 	bbsindex := obj.(*BbsIndex)
 
 	if !bbsindex.IsValid {
-		return NewNotFoundErrorPage(fmt.Errorf("not a valid cache.BbsIndex: %v/%v", brd.BrdName, page))
+		return NewNotFoundError(fmt.Errorf("not a valid cache.BbsIndex: %v/%v", brd.BrdName, pageNo))
 	}
 
-	return tmpl["bbsindex.html"].Execute(w, &bbsindex)
+	return page.ExecutePage(w, (*page.BbsIndex)(bbsindex))
 }
 
 func handleArticle(c *Context, w http.ResponseWriter) error {
@@ -363,21 +347,21 @@ func handleArticle(c *Context, w http.ResponseWriter) error {
 	ar := obj.(*Article)
 
 	if !ar.IsValid {
-		return handleNotFound(c, w)
+		return NewNotFoundError(nil)
 	}
 
 	if len(ar.ContentHtml) > TruncateSize {
 		log.Println("Large rendered article:", brd.BrdName, filename, len(ar.ContentHtml))
 	}
 
-	return tmpl["bbsarticle.html"].Execute(w, map[string]interface{}{
-		"Title":            ar.ParsedTitle,
-		"Description":      ar.PreviewContent,
-		"Board":            brd,
-		"FileName":         filename,
-		"ContentHtml":      string(ar.ContentHtml),
-		"ContentTailHtml":  string(ar.ContentTailHtml),
-		"ContentTruncated": ar.IsTruncated,
+	return page.ExecutePage(w, &page.BbsArticle{
+		Title:            ar.ParsedTitle,
+		Description:      ar.PreviewContent,
+		Board:            brd,
+		FileName:         filename,
+		ContentHtml:      string(ar.ContentHtml),
+		ContentTailHtml:  string(ar.ContentTailHtml),
+		ContentTruncated: ar.IsTruncated,
 	})
 }
 
@@ -397,36 +381,36 @@ func getBoardByName(c *Context, brdname string) (*pttbbs.Board, error) {
 
 func hasPermViewBoard(c *Context, brd *pttbbs.Board) error {
 	if !pttbbs.IsValidBrdName(brd.BrdName) || brd.Hidden {
-		return NewNotFoundErrorPage(fmt.Errorf("no permission: %s", brd.BrdName))
+		return NewNotFoundError(fmt.Errorf("no permission: %s", brd.BrdName))
 	}
 	if brd.Over18 {
 		if config.EnableOver18Cookie {
 			if c.IsCrawler() {
 				// Crawlers don't have age
 			} else if !c.IsOver18() {
-				return errorRedirectAskOver18(c)
+				return shouldAskOver18Error(c)
 			}
 		} else {
-			return NewNotFoundErrorPage(ErrOver18CookieNotEnabled)
+			return NewNotFoundError(ErrOver18CookieNotEnabled)
 		}
 	}
 	return nil
 }
 
-func errorRedirectAskOver18(c *Context) error {
+func shouldAskOver18Error(c *Context) error {
 	q := make(url.Values)
 	q.Set("from", c.R.URL.String())
 
 	u, _ := router.Get("askover18").URLPath()
 
-	return &RedirectErrorPage{
-		To: u.String() + "?" + q.Encode(),
-	}
+	err := new(ShouldAskOver18Error)
+	err.To = u.String() + "?" + q.Encode()
+	return err
 }
 
 func clarifyRemoteError(err error) error {
 	if err == pttbbs.ErrNotFound {
-		return NewNotFoundErrorPage(err)
+		return NewNotFoundError(err)
 	}
 	return err
 }

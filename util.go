@@ -2,40 +2,31 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"net/url"
+
+	"github.com/ptt/pttweb/page"
 )
 
-type RedirectErrorPage struct {
-	To string
+type ShouldAskOver18Error struct {
+	page.Redirect
 }
 
-func (e *RedirectErrorPage) Error() string {
-	return fmt.Sprintf("redirect error page to: %v", e.To)
+func (e *ShouldAskOver18Error) Error() string {
+	return fmt.Sprintf("should ask over18, redirect: %v", e.To)
 }
 
-func (e *RedirectErrorPage) EmitErrorPage(w http.ResponseWriter, r *http.Request) error {
-	w.Header().Set("Location", e.To)
-	w.WriteHeader(http.StatusFound)
-	return nil
+type NotFoundError struct {
+	page.NotFound
+	UnderlyingErr error
 }
 
-type NotFoundErrorPage struct {
-	Err error
+func (e *NotFoundError) Error() string {
+	return fmt.Sprintf("not found error page: %v", e.UnderlyingErr)
 }
 
-func (e *NotFoundErrorPage) Error() string {
-	return fmt.Sprintf("not found error page: %v", e.Err)
-}
-
-func (e *NotFoundErrorPage) EmitErrorPage(w http.ResponseWriter, r *http.Request) error {
-	w.WriteHeader(http.StatusNotFound)
-	return tmpl["notfound.html"].Execute(w, nil)
-}
-
-func NewNotFoundErrorPage(err error) *NotFoundErrorPage {
-	return &NotFoundErrorPage{
-		Err: err,
+func NewNotFoundError(err error) *NotFoundError {
+	return &NotFoundError{
+		UnderlyingErr: err,
 	}
 }
 
