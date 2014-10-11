@@ -28,9 +28,6 @@ const (
 	ArticleCacheTimeout          = time.Minute * 10
 	BbsIndexCacheTimeout         = time.Minute * 5
 	BbsIndexLastPageCacheTimeout = time.Minute * 1
-
-	DefaultBoarddMaxConn    = 16
-	DefaultMemcachedMaxConn = 16
 )
 
 var (
@@ -59,27 +56,7 @@ func loadConfig() error {
 		return err
 	}
 
-	return nil
-}
-
-func ensureConfig(c *PttwebConfig) error {
-	if c.BoarddAddress == "" {
-		return errors.New("boardd address not specified")
-	}
-
-	if c.MemcachedAddress == "" {
-		return errors.New("memcached address not specified")
-	}
-
-	if c.BoarddMaxConn <= 0 {
-		c.BoarddMaxConn = DefaultBoarddMaxConn
-	}
-
-	if c.MemcachedMaxConn <= 0 {
-		c.MemcachedMaxConn = DefaultMemcachedMaxConn
-	}
-
-	return nil
+	return config.CheckAndFillDefaults()
 }
 
 func main() {
@@ -87,10 +64,6 @@ func main() {
 
 	if err := loadConfig(); err != nil {
 		log.Fatal("loadConfig:", err)
-	}
-
-	if err := ensureConfig(&config); err != nil {
-		log.Fatal("ensureConfig:", err)
 	}
 
 	// Init RemotePtt
