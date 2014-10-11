@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +26,7 @@ func getBrdCache(brdname string) *pttbbs.Board {
 	brdCacheLk.Lock()
 	defer brdCacheLk.Unlock()
 
+	brdname = strings.ToLower(brdname)
 	entry := brdCache[brdname]
 	if entry != nil {
 		if time.Now().Before(entry.Expire) {
@@ -41,7 +43,7 @@ func setBrdCache(brdname string, board *pttbbs.Board) {
 	brdCacheLk.Lock()
 	defer brdCacheLk.Unlock()
 
-	brdCache[brdname] = &brdCacheEntry{
+	brdCache[strings.ToLower(brdname)] = &brdCacheEntry{
 		Board:  board,
 		Expire: time.Now().Add(brdCacheExpire),
 	}
