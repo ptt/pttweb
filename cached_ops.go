@@ -171,6 +171,11 @@ func generateArticle(key cache.Key) (cache.Cacheable, error) {
 			}
 			a.ContentTailHtml = buf.Bytes()
 		}
+		a.CacheKey = ptail.CacheKey
+		a.NextOffset = ptail.FileSize - TailSize + ptail.Offset + ptail.Length
+	} else {
+		a.CacheKey = p.CacheKey
+		a.NextOffset = p.Length
 	}
 
 	ar := article.NewRenderer()
@@ -184,6 +189,47 @@ func generateArticle(key cache.Key) (cache.Cacheable, error) {
 	a.ContentHtml = buf.Bytes()
 	a.IsValid = true
 	return a, nil
+}
+
+type ArticlePartRequest struct {
+	Brd      pttbbs.Board
+	Filename string
+	CacheKey string
+	Offset   int
+}
+
+func (r *ArticlePartRequest) String() string {
+	return fmt.Sprintf("pttweb:bbs/%v/%v#%v,%v", r.Brd.BrdName, r.Filename, r.CacheKey, r.Offset)
+}
+
+func generateArticlePart(key cache.Key) (cache.Cacheable, error) {
+	r := key.(*ArticlePartRequest)
+
+	p, err := ptt.GetArticleSelect(r.Brd.Bid, pttbbs.SelectHead, r.Filename, r.CacheKey, r.Offset, -1)
+	if err == pttbbs.ErrNotFound {
+		// Returns an invalid result
+		return new(ArticlePart), nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	ap := new(ArticlePart)
+	ap.IsValid = true
+	ap.CacheKey = p.CacheKey
+	ap.NextOffset = r.Offset + p.Offset + p.Length
+
+	if len(p.Content) > 0 {
+		ar := article.NewRenderer()
+		ar.DisableArticleHeader = true
+		buf, err := ar.Render(p.Content)
+		if err != nil {
+			return nil, err
+		}
+		ap.ContentHtml = string(buf.Bytes())
+	}
+
+	return ap, nil
 }
 
 func truncateLargeContent(content []byte, size, maxScan int) []byte {

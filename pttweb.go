@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	_ "net/http/pprof"
 	"net/url"
 	"os"
 	"os/signal"
@@ -29,6 +30,7 @@ import (
 	"github.com/ptt/pttweb/page"
 	manpb "github.com/ptt/pttweb/proto/man"
 	"github.com/ptt/pttweb/pttbbs"
+	"github.com/ptt/pttweb/pushstream"
 
 	"github.com/gorilla/mux"
 )
@@ -41,6 +43,7 @@ const (
 
 var (
 	ErrOver18CookieNotEnabled = errors.New("board is over18 but cookie not enabled")
+	ErrSigMismatch            = errors.New("push stream signature mismatch")
 )
 
 var ptt pttbbs.Pttbbs
@@ -162,6 +165,7 @@ func createRouter() *mux.Router {
 	router.HandleFunc(`/atom/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}.xml`, errorWrapperHandler(handleBoardAtomFeed))
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/{filename:[MG]\.\d+\.A(?:\.[0-9A-F]+)?}.html`, errorWrapperHandler(handleArticle)).Name("bbsarticle")
 	router.HandleFunc(`/b/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/{aidc:[0-9A-Za-z\-_]+}`, errorWrapperHandler(handleAidc)).Name("bbsaidc")
+	router.HandleFunc(`/poll/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/{filename:[MG]\.\d+\.A(\.[0-9A-F]+)?}.html`, errorWrapperHandler(handleArticlePoll)).Name("bbsarticlepoll")
 	router.HandleFunc(`/ask/over18`, errorWrapperHandler(handleAskOver18)).Name("askover18")
 	router.HandleFunc(`/man/{fullpath:[0-9a-zA-Z_\.\-\/]+}.html`, errorWrapperHandler(handleMan)).Name("manentry")
 	return router
@@ -479,6 +483,11 @@ func handleArticleCommon(c *Context, w http.ResponseWriter, brdname, filename st
 		log.Println("Large rendered article:", brd.BrdName, filename, len(ar.ContentHtml))
 	}
 
+	pollUrl, longPollUrl, err := uriForPolling(brd.BrdName, filename, ar.CacheKey, ar.NextOffset)
+	if err != nil {
+		return err
+	}
+
 	return page.ExecutePage(w, &page.BbsArticle{
 		Title:            ar.ParsedTitle,
 		Description:      ar.PreviewContent,
@@ -487,6 +496,9 @@ func handleArticleCommon(c *Context, w http.ResponseWriter, brdname, filename st
 		ContentHtml:      string(ar.ContentHtml),
 		ContentTailHtml:  string(ar.ContentTailHtml),
 		ContentTruncated: ar.IsTruncated,
+		PollUrl:          pollUrl,
+		LongPollUrl:      longPollUrl,
+		CurrOffset:       ar.NextOffset,
 	})
 }
 
@@ -498,6 +510,86 @@ func oldFilename(filename string) (string, bool) {
 		return "", false
 	}
 	return filename[:len(filename)-4], true
+}
+
+func verifySignature(brdname, filename string, size int64, sig string) bool {
+	return (&pushstream.PushNotification{
+		Brdname:   brdname,
+		Filename:  filename,
+		Size:      size,
+		Signature: sig,
+	}).CheckSignature(config.PushStreamSharedSecret)
+}
+
+func handleArticlePoll(c *Context, w http.ResponseWriter) error {
+	vars := mux.Vars(c.R)
+	brdname := vars["brdname"]
+	filename := vars["filename"]
+	cacheKey := c.R.FormValue("cacheKey")
+	offset, err := strconv.Atoi(c.R.FormValue("offset"))
+	if err != nil {
+		return err
+	}
+	size, err := strconv.Atoi(c.R.FormValue("size"))
+	if err != nil {
+		return err
+	}
+
+	if !verifySignature(brdname, filename, int64(offset), c.R.FormValue("offset-sig")) ||
+		!verifySignature(brdname, filename, int64(size), c.R.FormValue("size-sig")) {
+		return ErrSigMismatch
+	}
+
+	brd, err := getBoardByName(c, brdname)
+	if err != nil {
+		return err
+	}
+
+	obj, err := cacheMgr.Get(&ArticlePartRequest{
+		Brd:      *brd,
+		Filename: filename,
+		CacheKey: cacheKey,
+		Offset:   offset,
+	}, ZeroArticlePart, time.Second, generateArticlePart)
+	if err != nil {
+		return err
+	}
+	ap := obj.(*ArticlePart)
+
+	res := new(page.ArticlePollResp)
+	res.Success = ap.IsValid
+	if ap.IsValid {
+		res.ContentHtml = ap.ContentHtml
+		res.PollUrl, _, err = uriForPolling(brdname, filename, ap.CacheKey, ap.NextOffset)
+		if err != nil {
+			return err
+		}
+	}
+	return page.WriteAjaxResp(w, res)
+}
+
+func uriForPolling(brdname, filename, cacheKey string, offset int) (poll, longPoll string, err error) {
+	pn := pushstream.PushNotification{
+		Brdname:  brdname,
+		Filename: filename,
+		Size:     int64(offset),
+	}
+	pn.Sign(config.PushStreamSharedSecret)
+
+	next, err := router.Get("bbsarticlepoll").URLPath("brdname", brdname, "filename", filename)
+	if err != nil {
+		return
+	}
+	args := make(url.Values)
+	args.Set("cacheKey", cacheKey)
+	args.Set("offset", strconv.FormatInt(pn.Size, 10))
+	args.Set("offset-sig", pn.Signature)
+	poll = next.String() + "?" + args.Encode()
+
+	lpArgs := make(url.Values)
+	lpArgs.Set("id", pushstream.GetPushChannel(&pn, config.PushStreamSharedSecret))
+	longPoll = config.PushStreamSubscribeLocation + "?" + lpArgs.Encode()
+	return
 }
 
 func getBoardByName(c *Context, brdname string) (*pttbbs.Board, error) {

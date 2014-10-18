@@ -86,6 +86,9 @@ type BbsArticle struct {
 	ContentHtml      string
 	ContentTailHtml  string
 	ContentTruncated bool
+	PollUrl          string
+	LongPollUrl      string
+	CurrOffset       int
 }
 
 func (BbsArticle) TemplateName() string { return TnameBbsArticle }

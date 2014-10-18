@@ -13,6 +13,7 @@ import (
 // Useful when calling |NewFromBytes|
 var (
 	ZeroArticle       *Article
+	ZeroArticlePart   *ArticlePart
 	ZeroBbsIndex      *BbsIndex
 	ZeroBoardAtomFeed *BoardAtomFeed
 )
@@ -45,6 +46,9 @@ type Article struct {
 	IsPartial       bool
 	IsTruncated     bool
 
+	CacheKey   string
+	NextOffset int
+
 	IsValid bool
 }
 
@@ -53,6 +57,21 @@ func (_ *Article) NewFromBytes(data []byte) (cache.Cacheable, error) {
 }
 
 func (a *Article) EncodeToBytes() ([]byte, error) {
+	return gobEncodeBytes(a)
+}
+
+type ArticlePart struct {
+	ContentHtml string
+	CacheKey    string
+	NextOffset  int
+	IsValid     bool
+}
+
+func (_ *ArticlePart) NewFromBytes(data []byte) (cache.Cacheable, error) {
+	return gobDecodeCacheable(data, new(ArticlePart))
+}
+
+func (a *ArticlePart) EncodeToBytes() ([]byte, error) {
 	return gobEncodeBytes(a)
 }
 
@@ -81,11 +100,13 @@ func (bi *BoardAtomFeed) EncodeToBytes() ([]byte, error) {
 
 func init() {
 	gob.Register(Article{})
+	gob.Register(ArticlePart{})
 	gob.Register(BbsIndex{})
 	gob.Register(BoardAtomFeed{})
 
 	// Make sure they are |Cacheable|
 	checkCacheable(new(Article))
+	checkCacheable(new(ArticlePart))
 	checkCacheable(new(BbsIndex))
 	checkCacheable(new(BoardAtomFeed))
 }
