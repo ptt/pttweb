@@ -552,7 +552,7 @@ func handleArticlePoll(c *Context, w http.ResponseWriter) error {
 		Filename: filename,
 		CacheKey: cacheKey,
 		Offset:   offset,
-	}, ZeroArticlePart, time.Second, generateArticlePart)
+	}, ZeroArticlePart, time.Minute, generateArticlePart)
 	if err != nil {
 		return err
 	}
