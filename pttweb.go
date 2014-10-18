@@ -165,7 +165,9 @@ func createRouter() *mux.Router {
 	router.HandleFunc(`/atom/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}.xml`, errorWrapperHandler(handleBoardAtomFeed))
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/{filename:[MG]\.\d+\.A(?:\.[0-9A-F]+)?}.html`, errorWrapperHandler(handleArticle)).Name("bbsarticle")
 	router.HandleFunc(`/b/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/{aidc:[0-9A-Za-z\-_]+}`, errorWrapperHandler(handleAidc)).Name("bbsaidc")
-	router.HandleFunc(`/poll/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/{filename:[MG]\.\d+\.A(\.[0-9A-F]+)?}.html`, errorWrapperHandler(handleArticlePoll)).Name("bbsarticlepoll")
+	if config.EnablePushStream {
+		router.HandleFunc(`/poll/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/{filename:[MG]\.\d+\.A(\.[0-9A-F]+)?}.html`, errorWrapperHandler(handleArticlePoll)).Name("bbsarticlepoll")
+	}
 	router.HandleFunc(`/ask/over18`, errorWrapperHandler(handleAskOver18)).Name("askover18")
 	router.HandleFunc(`/man/{fullpath:[0-9a-zA-Z_\.\-\/]+}.html`, errorWrapperHandler(handleMan)).Name("manentry")
 	return router
@@ -569,6 +571,10 @@ func handleArticlePoll(c *Context, w http.ResponseWriter) error {
 }
 
 func uriForPolling(brdname, filename, cacheKey string, offset int) (poll, longPoll string, err error) {
+	if !config.EnablePushStream {
+		return
+	}
+
 	pn := pushstream.PushNotification{
 		Brdname:  brdname,
 		Filename: filename,

@@ -23,6 +23,7 @@ type PttwebConfig struct {
 	FeedPrefix            string
 	AtomFeedTitleTemplate string
 
+	EnablePushStream            bool
 	PushStreamSharedSecret      string
 	PushStreamSubscribeLocation string
 }
