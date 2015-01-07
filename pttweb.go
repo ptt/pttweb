@@ -154,6 +154,9 @@ func templateFuncMap() template.FuncMap {
 		"ga_domain": func() string {
 			return config.GADomain
 		},
+		"slice": func(args ...interface{}) []interface{} {
+			return args
+		},
 	}
 }
 
