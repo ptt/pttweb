@@ -5,6 +5,7 @@ type Pttbbs interface {
 	GetBoard(bid int) (brd Board, err error)
 	GetArticleCount(bid int) (int, error)
 	GetArticleList(bid, offset int) ([]Article, error)
+	GetBottomList(bid int) ([]Article, error)
 	GetArticleContent(bid int, filename string) ([]byte, error)
 	BrdName2Bid(brdname string) (int, error)
 	GetArticleSelect(bid int, meth SelectMethod, filename, cacheKey string, offset, maxlen int) (*ArticlePart, error)

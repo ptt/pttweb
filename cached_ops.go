@@ -51,6 +51,14 @@ func generateBbsIndex(key cache.Key) (cache.Cacheable, error) {
 		return nil, err
 	}
 
+	// Fetch bottoms when at last page
+	if page == paging.LastPageNo() {
+		bbsindex.Bottoms, err = ptt.GetBottomList(r.Brd.Bid)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// Page links
 	if page > 1 {
 		bbsindex.HasPrevPage = true

@@ -69,6 +69,7 @@ type BbsIndex struct {
 	TotalPage   int
 
 	Articles []pttbbs.Article
+	Bottoms  []pttbbs.Article
 
 	IsValid bool
 }

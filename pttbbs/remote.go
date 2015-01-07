@@ -156,7 +156,18 @@ func (p *RemotePtt) GetArticleList(bid, offset int) (articles []Article, err err
 	if _, err = p.queryMemd("s", key(bid, "articles."+strconv.Itoa(offset)), &result); err != nil {
 		return nil, err
 	}
+	return parseDirList(result)
+}
 
+func (p *RemotePtt) GetBottomList(bid int) (articles []Article, err error) {
+	var result string
+	if _, err = p.queryMemd("s", key(bid, "bottoms"), &result); err != nil {
+		return nil, err
+	}
+	return parseDirList(result)
+}
+
+func parseDirList(result string) (articles []Article, err error) {
 	articles = make([]Article, 0, 20)
 
 	for _, line := range strings.Split(result, "\n") {
