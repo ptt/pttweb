@@ -116,6 +116,7 @@ func createRouter() *mux.Router {
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/index.html`, errorWrapperHandler(handleBbs)).Name("bbsindex")
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/index{page:\d+}.html`, errorWrapperHandler(handleBbs)).Name("bbsindex_page")
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/{filename:[MG]\.\d+\.A(\.[0-9A-F]+)?}.html`, errorWrapperHandler(handleArticle)).Name("bbsarticle")
+	router.HandleFunc(`/b/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/{aidc:[0-9A-Za-z\-_]+}`, errorWrapperHandler(handleAidc)).Name("bbsaidc")
 	router.HandleFunc(`/ask/over18`, errorWrapperHandler(handleAskOver18)).Name("askover18")
 	return router
 }
@@ -304,7 +305,20 @@ func handleArticle(c *Context, w http.ResponseWriter) error {
 	vars := mux.Vars(c.R)
 	brdname := vars["brdname"]
 	filename := vars["filename"]
+	return handleArticleCommon(c, w, brdname, filename)
+}
 
+func handleAidc(c *Context, w http.ResponseWriter) error {
+	vars := mux.Vars(c.R)
+	brdname := vars["brdname"]
+	aid, err := pttbbs.ParseAid(vars["aidc"])
+	if err != nil {
+		return NewNotFoundError(fmt.Errorf("board %v, invalid aid: %v", brdname, err))
+	}
+	return handleArticleCommon(c, w, brdname, aid.Filename())
+}
+
+func handleArticleCommon(c *Context, w http.ResponseWriter, brdname, filename string) error {
 	var err error
 
 	brd, err := getBoardByName(c, brdname)
