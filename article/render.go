@@ -2,9 +2,13 @@ package article
 
 import (
 	"bytes"
+	"log"
 
 	"github.com/ptt/pttweb/ansi"
 	"github.com/ptt/pttweb/pttbbs"
+	"github.com/ptt/pttweb/richcontent"
+
+	"golang.org/x/net/context"
 )
 
 const (
@@ -13,6 +17,7 @@ const (
 
 type Renderer struct {
 	DisableArticleHeader bool
+	Context              context.Context
 
 	buf    bytes.Buffer
 	lineNo int
@@ -253,12 +258,18 @@ func (r *Renderer) processNormalContentLine(line []byte) {
 		isPush = true
 	}
 
-	for _, u := range FindAllUrlsIndex(line) {
-		urlString := string(line[u[0]:u[1]])
-		linkBegin, linkEnd := makeExternalUrlLink(urlString)
+	rcs, err := richcontent.Find(r.Context, line)
+	if err != nil {
+		rcs = nil
+		log.Println("warning: rendering article: richcontent.Find:", err)
+	}
 
-		begin := r.mapper.Get(u[0])
-		end := r.mapper.Get(u[1])
+	for _, rc := range rcs {
+		linkBegin, linkEnd := makeExternalUrlLink(rc.URLString())
+
+		lbegin, lend := rc.Pos()
+		begin := r.mapper.Get(lbegin)
+		end := r.mapper.Get(lend)
 		r.outputToSegment(begin[0], begin[1])
 		if begin[0] == end[0] {
 			// same segment: embed
@@ -280,9 +291,10 @@ func (r *Renderer) processNormalContentLine(line []byte) {
 		r.buf.WriteString(`</div>`)
 	}
 
-	if rcs, err := FindRichContents(r.lineBuf.Bytes()); err == nil {
-		for _, rc := range rcs {
-			r.buf.WriteString(`<div class="richcontent">` + rc.ContentHtml + `</div>`)
+	// Append rich contents to next line.
+	for _, rc := range rcs {
+		for _, comp := range rc.Components() {
+			r.buf.WriteString(`<div class="richcontent">` + comp.HTML() + `</div>`)
 		}
 	}
 }

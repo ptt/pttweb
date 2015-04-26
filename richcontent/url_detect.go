@@ -1,4 +1,4 @@
-package article
+package richcontent
 
 import (
 	"regexp"
