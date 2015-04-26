@@ -10,6 +10,7 @@ type PushNotification struct {
 	Filename  string `json:"filename"`
 	Size      int64  `json:"size"`
 	Signature string `json:"sig"`
+	CacheKey  string `json:"cacheKey"`
 }
 
 func (p *PushNotification) Sign(secret string) {
