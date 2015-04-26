@@ -6,10 +6,14 @@ import (
 	"github.com/ptt/pttweb/article"
 	"github.com/ptt/pttweb/cache"
 	"github.com/ptt/pttweb/pttbbs"
+
+	"golang.org/x/net/context"
 )
 
 const (
 	EntryPerPage = 20
+
+	CtxKeyArticleRequest = `ContextArticleRequest`
 )
 
 type BbsIndexRequest struct {
@@ -91,6 +95,7 @@ func (r *ArticleRequest) String() string {
 
 func generateArticle(key cache.Key) (cache.Cacheable, error) {
 	r := key.(*ArticleRequest)
+	ctx := context.WithValue(context.TODO(), CtxKeyArticleRequest, r)
 
 	p, err := ptt.GetArticleSelect(r.Brd.Bid, pttbbs.SelectHead, r.Filename, "", 0, HeadSize)
 	if err != nil {
@@ -123,6 +128,7 @@ func generateArticle(key cache.Key) (cache.Cacheable, error) {
 		if len(ptail.Content) > 0 {
 			ar := article.NewRenderer()
 			ar.DisableArticleHeader = true
+			ar.Context = ctx
 			buf, err := ar.Render(ptail.Content)
 			if err != nil {
 				return nil, err
@@ -132,6 +138,7 @@ func generateArticle(key cache.Key) (cache.Cacheable, error) {
 	}
 
 	ar := article.NewRenderer()
+	ar.Context = ctx
 	buf, err := ar.Render(p.Content)
 	if err != nil {
 		return nil, err
