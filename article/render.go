@@ -41,6 +41,7 @@ type Renderer struct {
 
 func NewRenderer() *Renderer {
 	ar := &Renderer{
+		Context:  context.TODO(),
 		mapper:   NewIndexMapper(2),
 		lineSegs: make([]Segment, 0, 8),
 	}
