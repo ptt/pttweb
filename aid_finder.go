@@ -45,8 +45,8 @@ func findAidText(ctx context.Context, input []byte) (rcs []richcontent.RichConte
 }
 
 func handleAidText(ctx context.Context, input []byte, m richcontent.MatchIndices) (string, error) {
-	req := ctx.Value(CtxKeyArticleRequest).(*ArticleRequest)
-	if req == nil {
+	req, ok := ctx.Value(CtxKeyArticleRequest).(*ArticleRequest)
+	if !ok {
 		log.Println("no ArticleRequest present")
 		return "", nil // Silently fail
 	}
