@@ -21,11 +21,16 @@ const (
 )
 
 var (
-	validBrdNameRegexp = regexp.MustCompile(`^[0-9a-zA-Z][0-9a-zA-Z_\.\-]+$`)
+	validBrdNameRegexp  = regexp.MustCompile(`^[0-9a-zA-Z][0-9a-zA-Z_\.\-]+$`)
+	validFileNameRegexp = regexp.MustCompile(`^[MG]\.\d+\.A(\.[0-9A-F]+)?$`)
 )
 
 func IsValidBrdName(brdname string) bool {
 	return validBrdNameRegexp.MatchString(brdname)
+}
+
+func IsValidArticleFileName(filename string) bool {
+	return validFileNameRegexp.MatchString(filename)
 }
 
 func ParseArticleFirstLine(line []byte) (tag1, val1, tag2, val2 []byte, ok bool) {

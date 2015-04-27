@@ -133,7 +133,7 @@ func templateFuncMap() template.FuncMap {
 			return router.Get("classlist").URLPath("bid", strconv.Itoa(b.Bid))
 		},
 		"valid_article": func(a pttbbs.Article) bool {
-			return !strings.HasPrefix(a.FileName, ".")
+			return pttbbs.IsValidArticleFileName(a.FileName)
 		},
 		"route_bbsarticle": func(brdname, filename string) (*url.URL, error) {
 			return router.Get("bbsarticle").URLPath("brdname", brdname, "filename", filename)
