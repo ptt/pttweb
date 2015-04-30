@@ -15,6 +15,10 @@ var aidPatterns = []struct {
 	Handler func(ctx context.Context, input []byte, m richcontent.MatchIndices) (link string, err error)
 }{
 	{
+		Pattern: regexp.MustCompile(`([0-9A-Za-z\-_]{1,12}) 看板 #([0-9A-Za-z\-_\@]{8,10})`),
+		Handler: handleBoardAidText,
+	},
+	{
 		Pattern: regexp.MustCompile(`#([0-9A-Za-z\-_\@]{8,10}) \(([0-9A-Za-z\-_]{1,12})\)`),
 		Handler: handleAidBoardText,
 	},
@@ -58,6 +62,12 @@ func handleAidText(ctx context.Context, input []byte, m richcontent.MatchIndices
 func handleAidBoardText(ctx context.Context, input []byte, m richcontent.MatchIndices) (string, error) {
 	aidString := string(m.ByteSliceOf(input, 1))
 	brdname := string(m.ByteSliceOf(input, 2))
+	return aidAndBrdnameToArticle(brdname, aidString)
+}
+
+func handleBoardAidText(ctx context.Context, input []byte, m richcontent.MatchIndices) (string, error) {
+	brdname := string(m.ByteSliceOf(input, 1))
+	aidString := string(m.ByteSliceOf(input, 2))
 	return aidAndBrdnameToArticle(brdname, aidString)
 }
 
