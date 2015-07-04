@@ -47,6 +47,10 @@ func (a *AnsiParser) ConvertFromUTF8(input []byte) error {
 			case '[':
 				// multi-byte control sequence
 				s = ParsingControl
+			case 'm':
+				// XXX: some asciarts tend to use this as reset, but is not in the spec.
+				a.Escape(esc)
+				s = Default
 			default:
 				if r >= '@' && r <= '_' {
 					// 2-char control code, not supported
