@@ -6,10 +6,12 @@ import (
 
 func TestUrlMatches(t *testing.T) {
 	check(t, "Xhttp://example.com")
+	check(t, "http://example.com/安安", "http://example.com/")
 	check(t, "http://example.com", "http://example.com")
+	check(t, "http://example.com/index?y=1#yea", "http://example.com/index?y=1#yea")
 	check(t, "http://foo.com/? http://example.com", "http://foo.com/?", "http://example.com")
 	check(t, "[http://example.com/[({hmm})]", "http://example.com/[({hmm})]")
-	check(t, "(http://example.com/(Hi))", "http://example.com/(Hi)")
+	check(t, "(http://example.com/(Hi))", "http://example.com/(Hi))")
 }
 
 func check(t *testing.T, input string, truths ...string) {
