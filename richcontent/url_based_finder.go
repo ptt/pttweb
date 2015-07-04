@@ -36,6 +36,7 @@ type UrlPattern struct {
 
 var defaultUrlPatterns = []*UrlPattern{
 	newUrlPattern(`^https?://(?:www\.youtube\.com/watch\?(?:.+&)*v=|youtu\.be/)([\w\-]+)`, handleYoutube),
+	newUrlPattern(`^https?:(//i\.imgur\.com/[\.\w]+)$`, handleSameSchemeImage), // Note: cuz some users use http
 	newUrlPattern(`^https?://imgur\.com/([,\w]+)(?:\#(\d+))?[^/]*$`, handleImgur),
 	newUrlPattern(`^http://picmoe\.net/d\.php\?id=(\d+)`, handlePicmoe),
 	newUrlPattern(`\.(?i:png|jpg|gif)$`, handleGenericImage),
@@ -58,6 +59,10 @@ func handleYoutube(ctx context.Context, urlBytes []byte, match MatchIndices) ([]
 	return []Component{MakeComponent(fmt.Sprintf(
 		`<iframe class="youtube-player" type="text/html" width="640" height="385" src="//www.youtube.com/embed/%s" frameborder="0"></iframe>`,
 		string(match.ByteSliceOf(urlBytes, 1))))}, nil
+}
+
+func handleSameSchemeImage(ctx context.Context, urlBytes []byte, match MatchIndices) ([]Component, error) {
+	return []Component{MakeComponent(imageHtmlTag(string(match.ByteSliceOf(urlBytes, 1))))}, nil
 }
 
 func handleImgur(ctx context.Context, urlBytes []byte, match MatchIndices) ([]Component, error) {
