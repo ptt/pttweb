@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"code.google.com/p/vitess/go/memcache"
+	"github.com/youtube/vitess/go/memcache"
 )
 
 var (

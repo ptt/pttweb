@@ -5,7 +5,12 @@ import (
 	"log"
 	"time"
 
-	"code.google.com/p/vitess/go/memcache"
+	"github.com/youtube/vitess/go/memcache"
+)
+
+const (
+	// Request and connect timeout
+	DefaultTimeout = time.Second * 30
 )
 
 var (
@@ -60,7 +65,7 @@ func (m *MemcacheConnPool) GetConn() (*memcache.Connection, error) {
 
 func (m *MemcacheConnPool) ReleaseConn(c *memcache.Connection, err error) {
 	if err != nil {
-		if me, ok := err.(memcache.MemcacheError); ok {
+		if me, ok := err.(memcache.Error); ok {
 			log.Printf("MemcacheConnPool: dropping bad connection to %s due to error: %s\n",
 				m.server, me.Error())
 			m.DropConn(c)
@@ -101,7 +106,7 @@ func (m *MemcacheConnPool) manager() {
 }
 
 func (m *MemcacheConnPool) connect() {
-	if c, err := memcache.Connect(m.server); err != nil {
+	if c, err := memcache.Connect(m.server, DefaultTimeout); err != nil {
 		m.idle <- connectResult{conn: c, err: err}
 	} else {
 		m.ReleaseConn(c, nil)
