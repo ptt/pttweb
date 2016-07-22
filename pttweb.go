@@ -331,6 +331,14 @@ func handleArticleCommon(c *Context, w http.ResponseWriter, brdname, filename st
 		Brd:      *brd,
 		Filename: filename,
 	}, ZeroArticle, ArticleCacheTimeout, generateArticle)
+	// Try older filename when not found.
+	if err == pttbbs.ErrNotFound {
+		if name, ok := oldFilename(filename); ok {
+			if handleArticleCommon(c, w, brdname, name) == nil {
+				return nil
+			}
+		}
+	}
 	if err != nil {
 		return err
 	}
@@ -353,6 +361,16 @@ func handleArticleCommon(c *Context, w http.ResponseWriter, brdname, filename st
 		ContentTailHtml:  string(ar.ContentTailHtml),
 		ContentTruncated: ar.IsTruncated,
 	})
+}
+
+// oldFilename returns the old filename of an article if any.  Older articles
+// have no random suffix. This will result into ".000" suffix when converted
+// from AID.
+func oldFilename(filename string) (string, bool) {
+	if !strings.HasSuffix(filename, ".000") {
+		return "", false
+	}
+	return filename[:len(filename)-4], true
 }
 
 func getBoardByName(c *Context, brdname string) (*pttbbs.Board, error) {
