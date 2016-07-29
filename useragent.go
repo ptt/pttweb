@@ -14,6 +14,7 @@ var (
 		"facebookexternalhit",
 		"PlurkBot",
 		"Twitterbot",
+		"CloudFlare-AlwaysOnline",
 	}
 )
 
