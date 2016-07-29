@@ -8,6 +8,7 @@ import (
 var (
 	// Whitelist crawlers here
 	crawlerPatterns = [...]string{
+		"Google (+https://developers.google.com/+/web/snippet/)",
 		"Googlebot",
 		"bingbot",
 		"MSNbot",
