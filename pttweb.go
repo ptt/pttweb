@@ -112,6 +112,8 @@ func createRouter() *mux.Router {
 	router := mux.NewRouter()
 	router.PathPrefix(`/static/`).Handler(http.StripPrefix(`/static/`, http.FileServer(http.Dir(filepath.Join(config.TemplateDirectory, `static`)))))
 	router.HandleFunc(`/cls/{bid:[0-9]+}`, errorWrapperHandler(handleCls)).Name("classlist")
+	router.HandleFunc(`/bbs/`, errorWrapperHandler(handleClsRoot))
+	router.HandleFunc(`/bbs/index.html`, errorWrapperHandler(handleClsRoot))
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}{x:/?}`, errorWrapperHandler(handleBbsIndexRedirect))
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/index.html`, errorWrapperHandler(handleBbs)).Name("bbsindex")
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/index{page:\d+}.html`, errorWrapperHandler(handleBbs)).Name("bbsindex_page")
@@ -227,11 +229,22 @@ func handleAskOver18(c *Context, w http.ResponseWriter) error {
 	}
 }
 
+func handleClsRoot(c *Context, w http.ResponseWriter) error {
+	return handleClsWithBid(c, w, 1)
+}
+
 func handleCls(c *Context, w http.ResponseWriter) error {
 	vars := mux.Vars(c.R)
 	bid, err := strconv.Atoi(vars["bid"])
 	if err != nil {
 		return err
+	}
+	return handleClsWithBid(c, w, bid)
+}
+
+func handleClsWithBid(c *Context, w http.ResponseWriter, bid int) error {
+	if bid < 1 {
+		return NewNotFoundError(fmt.Errorf("invalid bid: %v", bid))
 	}
 
 	children, err := ptt.GetBoardChildren(bid)
