@@ -103,7 +103,7 @@ func generateArticle(key cache.Key) (cache.Cacheable, error) {
 	}
 
 	// We don't want head and tail have duplicate content
-	if p.FileSize <= HeadSize+TailSize {
+	if p.FileSize > HeadSize && p.FileSize <= HeadSize+TailSize {
 		p, err = ptt.GetArticleSelect(r.Brd.Bid, pttbbs.SelectPart, r.Filename, "", 0, p.FileSize)
 		if err != nil {
 			return nil, err
