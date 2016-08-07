@@ -3,6 +3,7 @@ package page
 import (
 	"net/http"
 
+	bbspb "github.com/ptt/pttweb/proto"
 	"github.com/ptt/pttweb/pttbbs"
 )
 
@@ -87,3 +88,23 @@ type BbsArticle struct {
 }
 
 func (BbsArticle) TemplateName() string { return TnameBbsArticle }
+
+type ManIndex struct {
+	Board   pttbbs.Board
+	Path    string
+	Entries []*bbspb.Entry
+}
+
+func (ManIndex) TemplateName() string { return TnameManIndex }
+
+type ManArticle struct {
+	Title            string
+	Description      string
+	Board            *pttbbs.Board
+	Path             string
+	ContentHtml      string
+	ContentTailHtml  string
+	ContentTruncated bool
+}
+
+func (ManArticle) TemplateName() string { return TnameManArticle }

@@ -7,6 +7,7 @@ import (
 type PttwebConfig struct {
 	Bind              []string
 	BoarddAddress     string
+	MandAddress       string
 	MemcachedAddress  string
 	TemplateDirectory string
 	StaticPrefix      string

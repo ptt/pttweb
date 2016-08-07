@@ -11,14 +11,21 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"text/template"
 	"time"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+
+	"golang.org/x/net/context"
+
 	"github.com/ptt/pttweb/cache"
 	"github.com/ptt/pttweb/page"
+	bbspb "github.com/ptt/pttweb/proto"
 	"github.com/ptt/pttweb/pttbbs"
 
 	"github.com/gorilla/mux"
@@ -35,6 +42,7 @@ var (
 )
 
 var ptt pttbbs.Pttbbs
+var mand bbspb.ManServiceClient
 var router *mux.Router
 var cacheMgr *cache.CacheManager
 
@@ -68,6 +76,13 @@ func main() {
 
 	// Init RemotePtt
 	ptt = pttbbs.NewRemotePtt(config.BoarddAddress, config.BoarddMaxConn)
+
+	// Init mand connection
+	if conn, err := grpc.Dial(config.MandAddress, grpc.WithInsecure(), grpc.WithBackoffMaxDelay(time.Second*5)); err != nil {
+		log.Fatal("cannot connect to mand:", config.MandAddress, err)
+	} else {
+		mand = bbspb.NewManServiceClient(conn)
+	}
 
 	// Init cache manager
 	cacheMgr = cache.NewCacheManager(config.MemcachedAddress, config.MemcachedMaxConn)
@@ -120,6 +135,7 @@ func createRouter() *mux.Router {
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/{filename:[MG]\.\d+\.A(\.[0-9A-F]+)?}.html`, errorWrapperHandler(handleArticle)).Name("bbsarticle")
 	router.HandleFunc(`/b/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/{aidc:[0-9A-Za-z\-_]+}`, errorWrapperHandler(handleAidc)).Name("bbsaidc")
 	router.HandleFunc(`/ask/over18`, errorWrapperHandler(handleAskOver18)).Name("askover18")
+	router.HandleFunc(`/man/{fullpath:[0-9a-zA-Z_\.\-\/]+}.html`, errorWrapperHandler(handleMan)).Name("manentry")
 	return router
 }
 
@@ -142,6 +158,23 @@ func templateFuncMap() template.FuncMap {
 		},
 		"route_askover18": func() (*url.URL, error) {
 			return router.Get("askover18").URLPath()
+		},
+		"route_manentry": func(e *bbspb.Entry) (*url.URL, error) {
+			var index string
+			if e.IsDir {
+				index = "index"
+			}
+			return router.Get("manentry").URLPath("fullpath", path.Join(e.BoardName, e.Path, index))
+		},
+		"route_manarticle": func(brdname, p string) (*url.URL, error) {
+			return router.Get("manentry").URLPath("fullpath", path.Join(brdname, p))
+		},
+		"route_manindex": func(brdname, p string) (*url.URL, error) {
+			return router.Get("manentry").URLPath("fullpath", path.Join(brdname, p, "index"))
+		},
+		"route_manparent": func(brdname, p string) (*url.URL, error) {
+			dir := path.Join(brdname, path.Dir(p))
+			return router.Get("manentry").URLPath("fullpath", path.Join(dir, "index"))
 		},
 		"route": func(where string, attrs ...string) (*url.URL, error) {
 			return router.Get(where).URLPath(attrs...)
@@ -391,6 +424,10 @@ func oldFilename(filename string) (string, bool) {
 }
 
 func getBoardByName(c *Context, brdname string) (*pttbbs.Board, error) {
+	if !pttbbs.IsValidBrdName(brdname) {
+		return nil, NewNotFoundError(fmt.Errorf("invalid board name: %s", brdname))
+	}
+
 	brd, err := getBoardByNameCached(brdname)
 	if err != nil {
 		return nil, err
@@ -438,6 +475,110 @@ func clarifyRemoteError(err error) error {
 		return NewNotFoundError(err)
 	}
 	return err
+}
+
+func handleMan(c *Context, w http.ResponseWriter) error {
+	vars := mux.Vars(c.R)
+	fullpath := strings.Split(vars["fullpath"], "/")
+	if len(fullpath) < 2 {
+		return NewNotFoundError(fmt.Errorf("invalid path: %v", fullpath))
+	}
+	brdname := fullpath[0]
+
+	brd, err := getBoardByName(c, brdname)
+	if err != nil {
+		return err
+	}
+
+	if fullpath[len(fullpath)-1] == "index" {
+		return handleManIndex(c, w, brd, strings.Join(fullpath[1:len(fullpath)-1], "/"))
+	}
+	return handleManArticle(c, w, brd, strings.Join(fullpath[1:], "/"))
+}
+
+func handleManIndex(c *Context, w http.ResponseWriter, brd *pttbbs.Board, path string) error {
+	res, err := mand.List(context.TODO(), &bbspb.ListRequest{
+		BoardName: brd.BrdName,
+		Path:      path,
+	}, grpc.FailFast(true))
+	if err != nil {
+		return translateMandError(err)
+	}
+	return page.ExecutePage(w, &page.ManIndex{
+		Board:   *brd,
+		Path:    path,
+		Entries: res.Entries,
+	})
+}
+
+func handleManArticle(c *Context, w http.ResponseWriter, brd *pttbbs.Board, path string) error {
+	obj, err := cacheMgr.Get(&ArticleRequest{
+		Namespace: "man",
+		Brd:       *brd,
+		Filename:  path,
+		Select: func(m pttbbs.SelectMethod, offset, maxlen int) (*pttbbs.ArticlePart, error) {
+			res, err := mand.Article(context.TODO(), &bbspb.ArticleRequest{
+				BoardName:  brd.BrdName,
+				Path:       path,
+				SelectType: manSelectType(m),
+				Offset:     int64(offset),
+				MaxLength:  int64(maxlen),
+			}, grpc.FailFast(true))
+			if err != nil {
+				return nil, translateMandError(err)
+			}
+			return &pttbbs.ArticlePart{
+				CacheKey: res.CacheKey,
+				FileSize: int(res.FileSize),
+				Offset:   int(res.SelectedOffset),
+				Length:   int(res.SelectedSize),
+				Content:  res.Content,
+			}, nil
+		},
+	}, ZeroArticle, ArticleCacheTimeout, generateArticle)
+	if err != nil {
+		return err
+	}
+	ar := obj.(*Article)
+
+	if !ar.IsValid {
+		return NewNotFoundError(nil)
+	}
+
+	if len(ar.ContentHtml) > TruncateSize {
+		log.Println("Large rendered article:", brd.BrdName, path, len(ar.ContentHtml))
+	}
+
+	return page.ExecutePage(w, &page.ManArticle{
+		Title:            ar.ParsedTitle,
+		Description:      ar.PreviewContent,
+		Board:            brd,
+		Path:             path,
+		ContentHtml:      string(ar.ContentHtml),
+		ContentTailHtml:  string(ar.ContentTailHtml),
+		ContentTruncated: ar.IsTruncated,
+	})
+}
+
+func manSelectType(m pttbbs.SelectMethod) bbspb.ArticleRequest_SelectType {
+	switch m {
+	case pttbbs.SelectHead:
+		return bbspb.ArticleRequest_SELECT_HEAD
+	case pttbbs.SelectTail:
+		return bbspb.ArticleRequest_SELECT_TAIL
+	case pttbbs.SelectPart:
+		return bbspb.ArticleRequest_SELECT_FULL
+	default:
+		panic("unknown select type")
+	}
+}
+
+func translateMandError(err error) error {
+	switch grpc.Code(err) {
+	case codes.NotFound, codes.PermissionDenied:
+		return NewNotFoundError(err)
+	}
+	return fmt.Errorf("wrapped mand error: %v", err)
 }
 
 func boardlist(ptt pttbbs.Pttbbs, indent string, root int, loop map[int]bool) {

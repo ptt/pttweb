@@ -17,6 +17,8 @@ var (
 		{TnameBbsIndex, TnameLayout, TnameCommon},
 		{TnameBbsArticle, TnameLayout, TnameCommon},
 		{TnameAskOver18, TnameLayout, TnameCommon},
+		{TnameManIndex, TnameLayout, TnameCommon},
+		{TnameManArticle, TnameLayout, TnameCommon},
 	}
 
 	tmpl TemplateMap
