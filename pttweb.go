@@ -341,8 +341,12 @@ func handleArticleCommon(c *Context, w http.ResponseWriter, brdname, filename st
 
 	// Render content
 	obj, err := cacheMgr.Get(&ArticleRequest{
-		Brd:      *brd,
-		Filename: filename,
+		Namespace: "bbs",
+		Brd:       *brd,
+		Filename:  filename,
+		Select: func(m pttbbs.SelectMethod, offset, maxlen int) (*pttbbs.ArticlePart, error) {
+			return ptt.GetArticleSelect(brd.Bid, m, filename, "", offset, maxlen)
+		},
 	}, ZeroArticle, ArticleCacheTimeout, generateArticle)
 	// Try older filename when not found.
 	if err == pttbbs.ErrNotFound {

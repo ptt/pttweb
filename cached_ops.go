@@ -85,26 +85,28 @@ const (
 )
 
 type ArticleRequest struct {
-	Brd      pttbbs.Board
-	Filename string
+	Namespace string
+	Brd       pttbbs.Board
+	Filename  string
+	Select    func(m pttbbs.SelectMethod, offset, maxlen int) (*pttbbs.ArticlePart, error)
 }
 
 func (r *ArticleRequest) String() string {
-	return fmt.Sprintf("pttweb:bbs/%v/%v", r.Brd.BrdName, r.Filename)
+	return fmt.Sprintf("pttweb:%v/%v/%v", r.Namespace, r.Brd.BrdName, r.Filename)
 }
 
 func generateArticle(key cache.Key) (cache.Cacheable, error) {
 	r := key.(*ArticleRequest)
 	ctx := context.WithValue(context.TODO(), CtxKeyArticleRequest, r)
 
-	p, err := ptt.GetArticleSelect(r.Brd.Bid, pttbbs.SelectHead, r.Filename, "", 0, HeadSize)
+	p, err := r.Select(pttbbs.SelectHead, 0, HeadSize)
 	if err != nil {
 		return nil, err
 	}
 
 	// We don't want head and tail have duplicate content
 	if p.FileSize > HeadSize && p.FileSize <= HeadSize+TailSize {
-		p, err = ptt.GetArticleSelect(r.Brd.Bid, pttbbs.SelectPart, r.Filename, "", 0, p.FileSize)
+		p, err = r.Select(pttbbs.SelectPart, 0, p.FileSize)
 		if err != nil {
 			return nil, err
 		}
@@ -121,7 +123,7 @@ func generateArticle(key cache.Key) (cache.Cacheable, error) {
 
 	if a.IsPartial {
 		// Get and render tail
-		ptail, err := ptt.GetArticleSelect(r.Brd.Bid, pttbbs.SelectTail, r.Filename, "", -TailSize, TailSize)
+		ptail, err := r.Select(pttbbs.SelectTail, -TailSize, TailSize)
 		if err != nil {
 			return nil, err
 		}
