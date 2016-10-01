@@ -43,12 +43,21 @@ func (e *EscapeSequence) ParseNumbers(buf []rune) {
 			part = append(part, r)
 		}
 		if r == ';' || i == len(buf)-1 {
-			num, err := strconv.Atoi(string(part))
-			if err != nil {
-				continue // be nice
+			switch len(part) {
+			case 0:
+				// Treat empty parameter as 0 (eg. "\e[;34m" as "\e[0;34m").
+				// It is not stated in the spec whether it's valid. But most
+				// terminal does this and are being relied by ascii art
+				// creators. Let's allow this.
+				e.Nums = append(e.Nums, 0)
+			default:
+				num, err := strconv.Atoi(string(part))
+				if err != nil {
+					continue // be nice
+				}
+				e.Nums = append(e.Nums, num)
+				part = part[0:0]
 			}
-			e.Nums = append(e.Nums, num)
-			part = part[0:0]
 		}
 	}
 }
