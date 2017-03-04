@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"flag"
 	"fmt"
@@ -23,6 +24,7 @@ import (
 
 	"golang.org/x/net/context"
 
+	"github.com/ptt/pttweb/atomfeed"
 	"github.com/ptt/pttweb/cache"
 	"github.com/ptt/pttweb/page"
 	bbspb "github.com/ptt/pttweb/proto"
@@ -45,6 +47,7 @@ var ptt pttbbs.Pttbbs
 var mand bbspb.ManServiceClient
 var router *mux.Router
 var cacheMgr *cache.CacheManager
+var atomConverter *atomfeed.Converter
 
 var configPath string
 var config PttwebConfig
@@ -86,6 +89,21 @@ func main() {
 
 	// Init cache manager
 	cacheMgr = cache.NewCacheManager(config.MemcachedAddress, config.MemcachedMaxConn)
+
+	// Init atom converter.
+	atomConverter = &atomfeed.Converter{
+		FeedTitleTemplate: template.Must(template.New("").Parse(config.AtomFeedTitleTemplate)),
+		LinkFeed: func(brdname string) (string, error) {
+			return config.FeedPrefix + "/" + brdname + ".xml", nil
+		},
+		LinkArticle: func(brdname, filename string) (string, error) {
+			u, err := router.Get("bbsarticle").URLPath("brdname", brdname, "filename", filename)
+			if err != nil {
+				return "", err
+			}
+			return config.SitePrefix + u.String(), nil
+		},
+	}
 
 	// Load templates
 	if err := page.LoadTemplates(config.TemplateDirectory, templateFuncMap()); err != nil {
@@ -133,6 +151,7 @@ func createRouter() *mux.Router {
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}{x:/?}`, errorWrapperHandler(handleBbsIndexRedirect))
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/index.html`, errorWrapperHandler(handleBbs)).Name("bbsindex")
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/index{page:\d+}.html`, errorWrapperHandler(handleBbs)).Name("bbsindex_page")
+	router.HandleFunc(`/atom/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}.xml`, errorWrapperHandler(handleBoardAtomFeed))
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/{filename:[MG]\.\d+\.A(\.[0-9A-F]+)?}.html`, errorWrapperHandler(handleArticle)).Name("bbsarticle")
 	router.HandleFunc(`/b/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/{aidc:[0-9A-Za-z\-_]+}`, errorWrapperHandler(handleAidc)).Name("bbsaidc")
 	router.HandleFunc(`/ask/over18`, errorWrapperHandler(handleAskOver18)).Name("askover18")
@@ -377,6 +396,36 @@ func handleBbs(c *Context, w http.ResponseWriter) error {
 	}
 
 	return page.ExecutePage(w, (*page.BbsIndex)(bbsindex))
+}
+
+func handleBoardAtomFeed(c *Context, w http.ResponseWriter) error {
+	vars := mux.Vars(c.R)
+	brdname := vars["brdname"]
+
+	timeout := BbsIndexLastPageCacheTimeout
+
+	brd, err := getBoardByName(c, brdname)
+	if err != nil {
+		return err
+	}
+
+	obj, err := cacheMgr.Get(&BoardAtomFeedRequest{
+		Brd: *brd,
+	}, ZeroBoardAtomFeed, timeout, generateBoardAtomFeed)
+	if err != nil {
+		return err
+	}
+	baf := obj.(*BoardAtomFeed)
+
+	if !baf.IsValid {
+		return NewNotFoundError(fmt.Errorf("not a valid cache.BoardAtomFeed: %v", brd.BrdName))
+	}
+
+	w.Header().Set("Content-Type", "application/xml")
+	if _, err = w.Write([]byte(xml.Header)); err != nil {
+		return err
+	}
+	return xml.NewEncoder(w).Encode(baf.Feed)
 }
 
 func handleArticle(c *Context, w http.ResponseWriter) error {

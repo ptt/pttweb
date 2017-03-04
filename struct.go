@@ -4,14 +4,17 @@ import (
 	"bytes"
 	"encoding/gob"
 
+	"golang.org/x/tools/blog/atom"
+
 	"github.com/ptt/pttweb/cache"
 	"github.com/ptt/pttweb/page"
 )
 
 // Useful when calling |NewFromBytes|
 var (
-	ZeroArticle  *Article
-	ZeroBbsIndex *BbsIndex
+	ZeroArticle       *Article
+	ZeroBbsIndex      *BbsIndex
+	ZeroBoardAtomFeed *BoardAtomFeed
 )
 
 func gobEncodeBytes(obj interface{}) ([]byte, error) {
@@ -63,13 +66,28 @@ func (bi *BbsIndex) EncodeToBytes() ([]byte, error) {
 	return gobEncodeBytes(bi)
 }
 
+type BoardAtomFeed struct {
+	Feed    *atom.Feed
+	IsValid bool
+}
+
+func (_ *BoardAtomFeed) NewFromBytes(data []byte) (cache.Cacheable, error) {
+	return gobDecodeCacheable(data, new(BoardAtomFeed))
+}
+
+func (bi *BoardAtomFeed) EncodeToBytes() ([]byte, error) {
+	return gobEncodeBytes(bi)
+}
+
 func init() {
 	gob.Register(Article{})
 	gob.Register(BbsIndex{})
+	gob.Register(BoardAtomFeed{})
 
 	// Make sure they are |Cacheable|
 	checkCacheable(new(Article))
 	checkCacheable(new(BbsIndex))
+	checkCacheable(new(BoardAtomFeed))
 }
 
 func checkCacheable(c cache.Cacheable) {

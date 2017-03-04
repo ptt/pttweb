@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"log"
 
 	"github.com/ptt/pttweb/article"
 	"github.com/ptt/pttweb/cache"
@@ -74,6 +76,38 @@ func generateBbsIndex(key cache.Key) (cache.Cacheable, error) {
 	}
 
 	return bbsindex, nil
+}
+
+type BoardAtomFeedRequest struct {
+	Brd pttbbs.Board
+}
+
+func (r *BoardAtomFeedRequest) String() string {
+	return fmt.Sprintf("pttweb:atomfeed/%v", r.Brd.BrdName)
+}
+
+func generateBoardAtomFeed(key cache.Key) (cache.Cacheable, error) {
+	r := key.(*BoardAtomFeedRequest)
+
+	if atomConverter == nil {
+		return nil, errors.New("atom feed not configured")
+	}
+
+	// Fetch article list
+	articles, err := ptt.GetArticleList(r.Brd.Bid, -20)
+	if err != nil {
+		return nil, err
+	}
+
+	feed, err := atomConverter.Convert(r.Brd, articles)
+	if err != nil {
+		log.Println("atomfeed: Convert:", err)
+		// Don't return error but cache that it's invalid.
+	}
+	return &BoardAtomFeed{
+		Feed:    feed,
+		IsValid: err == nil,
+	}, nil
 }
 
 const (

@@ -1,8 +1,6 @@
 package main
 
-import (
-	"errors"
-)
+import "errors"
 
 type PttwebConfig struct {
 	Bind              []string
@@ -11,6 +9,7 @@ type PttwebConfig struct {
 	MemcachedAddress  string
 	TemplateDirectory string
 	StaticPrefix      string
+	SitePrefix        string
 
 	BoarddMaxConn    int
 	MemcachedMaxConn int
@@ -19,6 +18,9 @@ type PttwebConfig struct {
 	GADomain  string
 
 	EnableOver18Cookie bool
+
+	FeedPrefix            string
+	AtomFeedTitleTemplate string
 }
 
 const (

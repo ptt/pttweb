@@ -2,7 +2,10 @@ package pttbbs
 
 import (
 	"bytes"
+	"errors"
 	"regexp"
+	"strconv"
+	"time"
 )
 
 var (
@@ -23,6 +26,7 @@ const (
 var (
 	validBrdNameRegexp  = regexp.MustCompile(`^[0-9a-zA-Z][0-9a-zA-Z_\.\-]+$`)
 	validFileNameRegexp = regexp.MustCompile(`^[MG]\.\d+\.A(\.[0-9A-F]+)?$`)
+	fileNameTimeRegexp  = regexp.MustCompile(`^[MG]\.(\d+)\.A(\.[0-9A-F]+)?$`)
 )
 
 func IsValidBrdName(brdname string) bool {
@@ -62,4 +66,16 @@ func MatchPrefixBytesToStrings(str []byte, patts []string) bool {
 		}
 	}
 	return false
+}
+
+func ParseFileNameTime(filename string) (time.Time, error) {
+	m := fileNameTimeRegexp.FindStringSubmatch(filename)
+	if len(m) == 0 {
+		return time.Time{}, errors.New("invalid filename pattern")
+	}
+	unix, err := strconv.ParseUint(m[1], 10, 64)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return time.Unix(int64(unix), 0), nil
 }
