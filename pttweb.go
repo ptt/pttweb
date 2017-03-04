@@ -127,8 +127,9 @@ func createRouter() *mux.Router {
 	router := mux.NewRouter()
 	router.PathPrefix(`/static/`).Handler(http.StripPrefix(`/static/`, http.FileServer(http.Dir(filepath.Join(config.TemplateDirectory, `static`)))))
 	router.HandleFunc(`/cls/{bid:[0-9]+}`, errorWrapperHandler(handleCls)).Name("classlist")
-	router.HandleFunc(`/bbs/`, errorWrapperHandler(handleClsRoot))
-	router.HandleFunc(`/bbs/index.html`, errorWrapperHandler(handleClsRoot))
+	router.HandleFunc(`/bbs/`, errorWrapperHandler(handleHotboards))
+	router.HandleFunc(`/bbs/index.html`, errorWrapperHandler(handleHotboards))
+	router.HandleFunc(`/bbs/hotboards.html`, errorWrapperHandler(handleHotboards))
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}{x:/?}`, errorWrapperHandler(handleBbsIndexRedirect))
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/index.html`, errorWrapperHandler(handleBbs)).Name("bbsindex")
 	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/index{page:\d+}.html`, errorWrapperHandler(handleBbs)).Name("bbsindex_page")
@@ -146,6 +147,9 @@ func templateFuncMap() template.FuncMap {
 		},
 		"route_bbsindex_page": func(b pttbbs.Board, pg int) (*url.URL, error) {
 			return router.Get("bbsindex_page").URLPath("brdname", b.BrdName, "page", strconv.Itoa(pg))
+		},
+		"route_classlist_bid": func(bid int) (*url.URL, error) {
+			return router.Get("classlist").URLPath("bid", strconv.Itoa(bid))
 		},
 		"route_classlist": func(b pttbbs.Board) (*url.URL, error) {
 			return router.Get("classlist").URLPath("bid", strconv.Itoa(b.Bid))
@@ -182,8 +186,9 @@ func templateFuncMap() template.FuncMap {
 		"static_prefix": func() string {
 			return config.StaticPrefix
 		},
-		"colored_counter": colored_counter,
-		"post_mark":       post_mark,
+		"colored_counter":      colored_counter,
+		"decorate_board_nuser": decorate_board_nuser,
+		"post_mark":            post_mark,
 		"ga_account": func() string {
 			return config.GAAccount
 		},
@@ -284,19 +289,46 @@ func handleClsWithBid(c *Context, w http.ResponseWriter, bid int) error {
 	if err != nil {
 		return err
 	}
-
-	boards := make([]pttbbs.Board, 0, 16)
-	for _, bid := range children {
-		if brd, err := ptt.GetBoard(bid); err == nil {
-			if pttbbs.IsValidBrdName(brd.BrdName) && !brd.Over18 && !brd.Hidden {
-				boards = append(boards, brd)
-			}
-		}
+	boards, err := getBoards(children, true)
+	if err != nil {
+		return err
 	}
-
 	return page.ExecutePage(w, &page.Classlist{
 		Boards: boards,
 	})
+}
+
+func handleHotboards(c *Context, w http.ResponseWriter) error {
+	bids, err := ptt.Hotboards()
+	if err != nil {
+		return err
+	}
+	boards, err := getBoards(bids, true)
+	if err != nil {
+		return err
+	}
+	return page.ExecutePage(w, &page.Classlist{
+		Boards:         boards,
+		IsHotboardList: true,
+	})
+}
+
+func getBoards(bids []int, ignoreErrors bool) ([]pttbbs.Board, error) {
+	boards := make([]pttbbs.Board, 0, 16)
+	for _, bid := range bids {
+		brd, err := ptt.GetBoard(bid)
+		if err != nil {
+			if !ignoreErrors {
+				return nil, err
+			}
+			continue
+		}
+		// List only valid boards.
+		if pttbbs.IsValidBrdName(brd.BrdName) && !brd.Hidden {
+			boards = append(boards, brd)
+		}
+	}
+	return boards, nil
 }
 
 func handleBbsIndexRedirect(c *Context, w http.ResponseWriter) error {

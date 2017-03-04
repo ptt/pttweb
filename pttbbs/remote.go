@@ -127,7 +127,7 @@ func (p *RemotePtt) GetBoardChildren(bid int) (children []int, err error) {
 
 func (p *RemotePtt) GetBoard(bid int) (brd Board, err error) {
 	var isboard, over18, hidden int
-	if _, err = p.queryMemd("iiissssi",
+	if _, err = p.queryMemd("iiissssii",
 		key(bid, "isboard"), &isboard,
 		key(bid, "over18"), &over18,
 		key(bid, "hidden"), &hidden,
@@ -135,7 +135,9 @@ func (p *RemotePtt) GetBoard(bid int) (brd Board, err error) {
 		key(bid, "title"), &brd.Title,
 		key(bid, "class"), &brd.Class,
 		key(bid, "BM"), &brd.BM,
-		key(bid, "parent"), &brd.Parent); err != nil {
+		key(bid, "parent"), &brd.Parent,
+		key(bid, "nuser"), &brd.Nuser,
+	); err != nil {
 		err = ErrAttributeFetchFailed
 		return
 	}
@@ -260,4 +262,24 @@ func (p *RemotePtt) GetArticleSelect(bid int, meth SelectMethod, filename, cache
 	}
 	part.Content = res[metaLen+1:]
 	return part, nil
+}
+
+func (p *RemotePtt) Hotboards() ([]int, error) {
+	var bidListStr string
+	_, err := p.queryMemd("s", "hotboards", &bidListStr)
+	if err != nil {
+		return nil, err
+	}
+	var bids []int
+	for _, bidStr := range strings.Split(bidListStr, ",") {
+		if len(bidStr) == 0 {
+			continue
+		}
+		bid, err := strconv.Atoi(bidStr)
+		if err != nil {
+			return nil, err
+		}
+		bids = append(bids, bid)
+	}
+	return bids, nil
 }

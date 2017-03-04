@@ -9,6 +9,7 @@ type Pttbbs interface {
 	GetArticleContent(bid int, filename string) ([]byte, error)
 	BrdName2Bid(brdname string) (int, error)
 	GetArticleSelect(bid int, meth SelectMethod, filename, cacheKey string, offset, maxlen int) (*ArticlePart, error)
+	Hotboards() ([]int, error)
 }
 
 type Board struct {
@@ -21,6 +22,7 @@ type Board struct {
 	Class   string
 	BM      string
 	Parent  int
+	Nuser   int
 }
 
 type Article struct {

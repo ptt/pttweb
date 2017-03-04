@@ -7,18 +7,45 @@ import (
 )
 
 func colored_counter(num int) string {
-	if num >= 100 {
+	switch {
+	case num >= 100:
 		return `<span class="hl f1">爆</span>`
-	} else if num >= 10 {
+	case num >= 10:
 		return `<span class="hl f3">` + strconv.Itoa(num) + `</span>`
-	} else if num > 0 {
+	case num > 0:
 		return `<span class="hl f2">` + strconv.Itoa(num) + `</span>`
-	} else if num <= -100 {
-		return `<span class="hl f0">XX</span>`
-	} else if num <= -10 {
+	case num > -10:
+		return ""
+	case num > -100:
 		return `<span class="hl f0">X` + strconv.Itoa(-num/10) + `</span>`
+	default:
+		return `<span class="hl f0">XX</span>`
 	}
-	return ""
+}
+
+func decorate_board_nuser(num int) string {
+	switch {
+	case num < 1:
+		return ""
+	case num <= 10:
+		return strconv.Itoa(num)
+	case num <= 50:
+		return `<span class="hl f3">` + strconv.Itoa(num) + `</span>`
+	case num < 2000:
+		return `<span class="hl">` + strconv.Itoa(num) + `</span>`
+	case num < 5000:
+		return `<span class="hl f1">` + strconv.Itoa(num) + `</span>`
+	case num < 10000:
+		return `<span class="hl f4">` + strconv.Itoa(num) + `</span>`
+	case num < 30000:
+		return `<span class="hl f6">` + strconv.Itoa(num) + `</span>`
+	case num < 60000:
+		return `<span class="hl f2">` + strconv.Itoa(num) + `</span>`
+	case num < 100000:
+		return `<span class="hl f3">` + strconv.Itoa(num) + `</span>`
+	default:
+		return `<span class="hl f5">` + strconv.Itoa(num) + `</span>`
+	}
 }
 
 func post_mark(mode int) string {

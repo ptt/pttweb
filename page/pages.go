@@ -55,7 +55,8 @@ type AskOver18 struct {
 func (AskOver18) TemplateName() string { return TnameAskOver18 }
 
 type Classlist struct {
-	Boards []pttbbs.Board
+	Boards         []pttbbs.Board
+	IsHotboardList bool
 }
 
 func (Classlist) TemplateName() string { return TnameClasslist }
