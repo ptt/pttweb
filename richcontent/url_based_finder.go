@@ -57,7 +57,7 @@ func imageHtmlTag(urlString string) string {
 
 func handleYoutube(ctx context.Context, urlBytes []byte, match MatchIndices) ([]Component, error) {
 	return []Component{MakeComponent(fmt.Sprintf(
-		`<div class="resize-container"><div class="resize-content"><iframe class="youtube-player" type="text/html" src="//www.youtube.com/embed/%s" frameborder="0"></iframe></div></div>`,
+		`<div class="resize-container"><div class="resize-content"><iframe class="youtube-player" type="text/html" src="//www.youtube.com/embed/%s" frameborder="0" allowfullscreen></iframe></div></div>`,
 		string(match.ByteSliceOf(urlBytes, 1))))}, nil
 }
 
