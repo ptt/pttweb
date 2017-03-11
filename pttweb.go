@@ -563,6 +563,14 @@ func clarifyRemoteError(err error) error {
 	if err == pttbbs.ErrNotFound {
 		return NewNotFoundError(err)
 	}
+	return translateGrpcError(err)
+}
+
+func translateGrpcError(err error) error {
+	switch grpc.Code(err) {
+	case codes.NotFound, codes.PermissionDenied:
+		return NewNotFoundError(err)
+	}
 	return err
 }
 
@@ -591,7 +599,7 @@ func handleManIndex(c *Context, w http.ResponseWriter, brd *pttbbs.Board, path s
 		Path:      path,
 	}, grpc.FailFast(true))
 	if err != nil {
-		return translateMandError(err)
+		return err
 	}
 	return page.ExecutePage(w, &page.ManIndex{
 		Board:   *brd,
@@ -614,7 +622,7 @@ func handleManArticle(c *Context, w http.ResponseWriter, brd *pttbbs.Board, path
 				MaxLength:  int64(maxlen),
 			}, grpc.FailFast(true))
 			if err != nil {
-				return nil, translateMandError(err)
+				return nil, err
 			}
 			return &pttbbs.ArticlePart{
 				CacheKey: res.CacheKey,
@@ -660,14 +668,6 @@ func manSelectType(m pttbbs.SelectMethod) manpb.ArticleRequest_SelectType {
 	default:
 		panic("unknown select type")
 	}
-}
-
-func translateMandError(err error) error {
-	switch grpc.Code(err) {
-	case codes.NotFound, codes.PermissionDenied:
-		return NewNotFoundError(err)
-	}
-	return fmt.Errorf("wrapped mand error: %v", err)
 }
 
 func boardlist(ptt pttbbs.Pttbbs, indent string, root int, loop map[int]bool) {
