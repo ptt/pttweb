@@ -67,3 +67,8 @@ const (
 	SelectHead              = `articlehead`
 	SelectTail              = `articletail`
 )
+
+const (
+	BoardGroup  uint32 = 0x00000008
+	BoardOver18        = 0x01000000
+)

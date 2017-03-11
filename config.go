@@ -5,6 +5,7 @@ import "errors"
 type PttwebConfig struct {
 	Bind              []string
 	BoarddAddress     string
+	UseGrpcForBoardd  bool
 	MandAddress       string
 	MemcachedAddress  string
 	TemplateDirectory string
