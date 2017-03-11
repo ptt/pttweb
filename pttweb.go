@@ -152,25 +152,72 @@ func main() {
 	<-progExit
 }
 
-func createRouter() *mux.Router {
-	router := mux.NewRouter()
-	router.PathPrefix(`/static/`).Handler(http.StripPrefix(`/static/`, http.FileServer(http.Dir(filepath.Join(config.TemplateDirectory, `static`)))))
-	router.HandleFunc(`/cls/{bid:[0-9]+}`, errorWrapperHandler(handleCls)).Name("classlist")
-	router.HandleFunc(`/bbs/`, errorWrapperHandler(handleHotboards))
-	router.HandleFunc(`/bbs/index.html`, errorWrapperHandler(handleHotboards))
-	router.HandleFunc(`/bbs/hotboards.html`, errorWrapperHandler(handleHotboards))
-	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}{x:/?}`, errorWrapperHandler(handleBbsIndexRedirect))
-	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/index.html`, errorWrapperHandler(handleBbs)).Name("bbsindex")
-	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/index{page:\d+}.html`, errorWrapperHandler(handleBbs)).Name("bbsindex_page")
-	router.HandleFunc(`/atom/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}.xml`, errorWrapperHandler(handleBoardAtomFeed))
-	router.HandleFunc(`/bbs/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/{filename:[MG]\.\d+\.A(?:\.[0-9A-F]+)?}.html`, errorWrapperHandler(handleArticle)).Name("bbsarticle")
-	router.HandleFunc(`/b/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/{aidc:[0-9A-Za-z\-_]+}`, errorWrapperHandler(handleAidc)).Name("bbsaidc")
-	if config.EnablePushStream {
-		router.HandleFunc(`/poll/{brdname:[A-Za-z][0-9a-zA-Z_\.\-]+}/{filename:[MG]\.\d+\.A(\.[0-9A-F]+)?}.html`, errorWrapperHandler(handleArticlePoll)).Name("bbsarticlepoll")
+func ReplaceVars(p string) string {
+	var subs = [][]string{
+		{`aidc`, `[0-9A-Za-z\-_]+`},
+		{`brdname`, `[A-Za-z][0-9a-zA-Z_\.\-]+`},
+		{`filename`, `[MG]\.\d+\.A(?:\.[0-9A-F]+)?`},
+		{`fullpath`, `[0-9a-zA-Z_\.\-\/]+`},
+		{`page`, `\d+`},
 	}
-	router.HandleFunc(`/ask/over18`, errorWrapperHandler(handleAskOver18)).Name("askover18")
-	router.HandleFunc(`/man/{fullpath:[0-9a-zA-Z_\.\-\/]+}.html`, errorWrapperHandler(handleMan)).Name("manentry")
-	return router
+	for _, s := range subs {
+		p = strings.Replace(p, fmt.Sprintf(`{%v}`, s[0]), fmt.Sprintf(`{%v:%v}`, s[0], s[1]), -1)
+	}
+	return p
+}
+
+func createRouter() *mux.Router {
+	r := mux.NewRouter()
+
+	staticFileServer := http.FileServer(http.Dir(filepath.Join(config.TemplateDirectory, `static`)))
+	r.PathPrefix(`/static/`).
+		Handler(http.StripPrefix(`/static/`, staticFileServer))
+
+	// Classlist
+	r.Path(ReplaceVars(`/cls/{bid:[0-9]+}`)).
+		Handler(ErrorWrapper(handleCls)).
+		Name("classlist")
+	r.Path(ReplaceVars(`/bbs/{x:|index\.html|hotboards\.html}`)).
+		Handler(ErrorWrapper(handleHotboards))
+
+	// Board
+	r.Path(ReplaceVars(`/bbs/{brdname}{x:/?}`)).
+		Handler(ErrorWrapper(handleBbsIndexRedirect))
+	r.Path(ReplaceVars(`/bbs/{brdname}/index.html`)).
+		Handler(ErrorWrapper(handleBbs)).
+		Name("bbsindex")
+	r.Path(ReplaceVars(`/bbs/{brdname}/index{page}.html`)).
+		Handler(ErrorWrapper(handleBbs)).
+		Name("bbsindex_page")
+
+	// Feed
+	r.Path(ReplaceVars(`/atom/{brdname}.xml`)).
+		Handler(ErrorWrapper(handleBoardAtomFeed))
+
+	// Post
+	r.Path(ReplaceVars(`/bbs/{brdname}/{filename}.html`)).
+		Handler(ErrorWrapper(handleArticle)).
+		Name("bbsarticle")
+	r.Path(ReplaceVars(`/b/{brdname}/{aidc}`)).
+		Handler(ErrorWrapper(handleAidc)).
+		Name("bbsaidc")
+
+	if config.EnablePushStream {
+		r.Path(ReplaceVars(`/poll/{brdname}/{filename}.html`)).
+			Handler(ErrorWrapper(handleArticlePoll)).
+			Name("bbsarticlepoll")
+	}
+
+	r.Path(ReplaceVars(`/ask/over18`)).
+		Handler(ErrorWrapper(handleAskOver18)).
+		Name("askover18")
+
+	// Man
+	r.Path(ReplaceVars(`/man/{fullpath}.html`)).
+		Handler(ErrorWrapper(handleMan)).
+		Name("manentry")
+
+	return r
 }
 
 func templateFuncMap() template.FuncMap {
@@ -240,19 +287,19 @@ func setCommonResponseHeaders(w http.ResponseWriter) {
 	h.Set("Content-Type", "text/html; charset=utf-8")
 }
 
-func errorWrapperHandler(f func(*Context, http.ResponseWriter) error) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		setCommonResponseHeaders(w)
+type ErrorWrapper func(*Context, http.ResponseWriter) error
 
-		if err := clarifyRemoteError(handleRequest(w, r, f)); err != nil {
-			if pg, ok := err.(page.Page); ok {
-				if err = page.ExecutePage(w, pg); err != nil {
-					log.Println("Failed to emit error page:", err)
-				}
-				return
+func (fn ErrorWrapper) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	setCommonResponseHeaders(w)
+
+	if err := clarifyRemoteError(handleRequest(w, r, fn)); err != nil {
+		if pg, ok := err.(page.Page); ok {
+			if err = page.ExecutePage(w, pg); err != nil {
+				log.Println("Failed to emit error page:", err)
 			}
-			internalError(w, err)
+			return
 		}
+		internalError(w, err)
 	}
 }
 
