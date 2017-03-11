@@ -316,46 +316,34 @@ func handleClsWithBid(c *Context, w http.ResponseWriter, bid int) error {
 	if err != nil {
 		return err
 	}
-	boards, err := getBoards(children, true)
+	boards, err := ptt.GetBoards(children)
 	if err != nil {
 		return err
 	}
 	return page.ExecutePage(w, &page.Classlist{
-		Boards: boards,
+		Boards: validBoards(boards),
 	})
 }
 
 func handleHotboards(c *Context, w http.ResponseWriter) error {
-	bids, err := ptt.Hotboards()
-	if err != nil {
-		return err
-	}
-	boards, err := getBoards(bids, true)
+	boards, err := ptt.Hotboards()
 	if err != nil {
 		return err
 	}
 	return page.ExecutePage(w, &page.Classlist{
-		Boards:         boards,
+		Boards:         validBoards(boards),
 		IsHotboardList: true,
 	})
 }
 
-func getBoards(bids []int, ignoreErrors bool) ([]pttbbs.Board, error) {
-	boards := make([]pttbbs.Board, 0, 16)
-	for _, bid := range bids {
-		brd, err := ptt.GetBoard(bid)
-		if err != nil {
-			if !ignoreErrors {
-				return nil, err
-			}
-			continue
-		}
-		// List only valid boards.
-		if pttbbs.IsValidBrdName(brd.BrdName) && !brd.Hidden {
-			boards = append(boards, brd)
+func validBoards(boards []pttbbs.Board) []pttbbs.Board {
+	var valids []pttbbs.Board
+	for _, b := range boards {
+		if pttbbs.IsValidBrdName(b.BrdName) && !b.Hidden {
+			valids = append(valids, b)
 		}
 	}
-	return boards, nil
+	return valids
 }
 
 func handleBbsIndexRedirect(c *Context, w http.ResponseWriter) error {

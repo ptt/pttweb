@@ -63,6 +63,24 @@ func (p *GrpcRemotePtt) GetBoard(bid int) (Board, error) {
 	return toBoard(b), nil
 }
 
+func (p *GrpcRemotePtt) GetBoards(bids []int) ([]Board, error) {
+	refs := make([]*apipb.BoardRef, len(bids))
+	for i, bid := range bids {
+		refs[i] = boardRefByBid(bid)
+	}
+	rep, err := p.service.Board(context.TODO(), &apipb.BoardRequest{
+		Ref: refs,
+	}, grpcCallOpts...)
+	if err != nil {
+		return nil, err
+	}
+	boards := make([]Board, len(rep.Boards))
+	for i, b := range rep.Boards {
+		boards[i] = toBoard(b)
+	}
+	return boards, nil
+}
+
 func toBoard(b *apipb.Board) Board {
 	return Board{
 		Bid:     int(b.Bid),
@@ -194,14 +212,14 @@ func toArticlePart(c *apipb.Content) *ArticlePart {
 	}
 }
 
-func (p *GrpcRemotePtt) Hotboards() ([]int, error) {
+func (p *GrpcRemotePtt) Hotboards() ([]Board, error) {
 	rep, err := p.service.Hotboard(context.TODO(), &apipb.HotboardRequest{}, grpcCallOpts...)
 	if err != nil {
 		return nil, err
 	}
-	var bids []int
+	var boards []Board
 	for _, b := range rep.Boards {
-		bids = append(bids, int(b.Bid))
+		boards = append(boards, toBoard(b))
 	}
-	return bids, nil
+	return boards, nil
 }

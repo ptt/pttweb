@@ -264,7 +264,15 @@ func (p *RemotePtt) GetArticleSelect(bid int, meth SelectMethod, filename, cache
 	return part, nil
 }
 
-func (p *RemotePtt) Hotboards() ([]int, error) {
+func (p *RemotePtt) Hotboards() ([]Board, error) {
+	bids, err := p.hotboardBids()
+	if err != nil {
+		return nil, err
+	}
+	return p.GetBoards(bids)
+}
+
+func (p *RemotePtt) hotboardBids() ([]int, error) {
 	var bidListStr string
 	_, err := p.queryMemd("s", "hotboards", &bidListStr)
 	if err != nil {
@@ -282,4 +290,20 @@ func (p *RemotePtt) Hotboards() ([]int, error) {
 		bids = append(bids, bid)
 	}
 	return bids, nil
+}
+
+func (p *RemotePtt) GetBoards(bids []int) ([]Board, error) {
+	boards := make([]Board, 0, 16)
+	for _, bid := range bids {
+		brd, err := p.GetBoard(bid)
+		if err != nil {
+			// Ignore errors.
+			continue
+		}
+		// List only valid boards.
+		if IsValidBrdName(brd.BrdName) && !brd.Hidden {
+			boards = append(boards, brd)
+		}
+	}
+	return boards, nil
 }

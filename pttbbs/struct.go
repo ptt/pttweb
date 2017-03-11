@@ -3,13 +3,14 @@ package pttbbs
 type Pttbbs interface {
 	GetBoardChildren(bid int) (children []int, err error)
 	GetBoard(bid int) (brd Board, err error)
+	GetBoards(bids []int) (brd []Board, err error)
 	GetArticleCount(bid int) (int, error)
 	GetArticleList(bid, offset int) ([]Article, error)
 	GetBottomList(bid int) ([]Article, error)
 	GetArticleContent(bid int, filename string) ([]byte, error)
 	BrdName2Bid(brdname string) (int, error)
 	GetArticleSelect(bid int, meth SelectMethod, filename, cacheKey string, offset, maxlen int) (*ArticlePart, error)
-	Hotboards() ([]int, error)
+	Hotboards() ([]Board, error)
 }
 
 type Board struct {
