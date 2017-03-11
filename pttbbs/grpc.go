@@ -161,6 +161,7 @@ func toArticle(p *apipb.Post) Article {
 		FileMode:  int(p.Filemode),
 		Owner:     p.Owner,
 		Title:     p.Title,
+		Modified:  time.Unix(0, p.ModifiedNsec),
 	}
 }
 

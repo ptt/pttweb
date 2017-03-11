@@ -1,5 +1,7 @@
 package pttbbs
 
+import "time"
+
 type Pttbbs interface {
 	GetBoardChildren(bid int) (children []int, err error)
 	GetBoard(bid int) (brd Board, err error)
@@ -34,6 +36,7 @@ type Article struct {
 	FileMode  int
 	Owner     string
 	Title     string
+	Modified  time.Time
 }
 
 type ArticlePart struct {

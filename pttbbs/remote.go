@@ -193,6 +193,8 @@ func parseDirList(result string) (articles []Article, err error) {
 			return nil, err
 		}
 
+		// Use the filename time or a zero value as the modified time.
+		modified, _ := ParseFileNameTime(parts[1])
 		articles = append(articles, Article{
 			Offset:    off,
 			FileName:  parts[1],
@@ -201,6 +203,7 @@ func parseDirList(result string) (articles []Article, err error) {
 			FileMode:  mode,
 			Owner:     parts[5],
 			Title:     parts[6],
+			Modified:  modified,
 		})
 	}
 	return articles, nil

@@ -68,7 +68,7 @@ func (c *Converter) convertArticle(a pttbbs.Article, brdname string) (*atom.Entr
 			Href: articleURL,
 		}},
 		Published: atom.Time(published),
-		Updated:   atom.Time(published), // TODO: support this in boardd.
+		Updated:   atom.Time(a.Modified),
 	}, nil
 }
 
