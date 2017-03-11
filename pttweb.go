@@ -27,7 +27,7 @@ import (
 	"github.com/ptt/pttweb/atomfeed"
 	"github.com/ptt/pttweb/cache"
 	"github.com/ptt/pttweb/page"
-	bbspb "github.com/ptt/pttweb/proto"
+	manpb "github.com/ptt/pttweb/proto/man"
 	"github.com/ptt/pttweb/pttbbs"
 
 	"github.com/gorilla/mux"
@@ -44,7 +44,7 @@ var (
 )
 
 var ptt pttbbs.Pttbbs
-var mand bbspb.ManServiceClient
+var mand manpb.ManServiceClient
 var router *mux.Router
 var cacheMgr *cache.CacheManager
 var atomConverter *atomfeed.Converter
@@ -84,7 +84,7 @@ func main() {
 	if conn, err := grpc.Dial(config.MandAddress, grpc.WithInsecure(), grpc.WithBackoffMaxDelay(time.Second*5)); err != nil {
 		log.Fatal("cannot connect to mand:", config.MandAddress, err)
 	} else {
-		mand = bbspb.NewManServiceClient(conn)
+		mand = manpb.NewManServiceClient(conn)
 	}
 
 	// Init cache manager
@@ -182,7 +182,7 @@ func templateFuncMap() template.FuncMap {
 		"route_askover18": func() (*url.URL, error) {
 			return router.Get("askover18").URLPath()
 		},
-		"route_manentry": func(e *bbspb.Entry) (*url.URL, error) {
+		"route_manentry": func(e *manpb.Entry) (*url.URL, error) {
 			var index string
 			if e.IsDir {
 				index = "index"
@@ -578,7 +578,7 @@ func handleMan(c *Context, w http.ResponseWriter) error {
 }
 
 func handleManIndex(c *Context, w http.ResponseWriter, brd *pttbbs.Board, path string) error {
-	res, err := mand.List(context.TODO(), &bbspb.ListRequest{
+	res, err := mand.List(context.TODO(), &manpb.ListRequest{
 		BoardName: brd.BrdName,
 		Path:      path,
 	}, grpc.FailFast(true))
@@ -598,7 +598,7 @@ func handleManArticle(c *Context, w http.ResponseWriter, brd *pttbbs.Board, path
 		Brd:       *brd,
 		Filename:  path,
 		Select: func(m pttbbs.SelectMethod, offset, maxlen int) (*pttbbs.ArticlePart, error) {
-			res, err := mand.Article(context.TODO(), &bbspb.ArticleRequest{
+			res, err := mand.Article(context.TODO(), &manpb.ArticleRequest{
 				BoardName:  brd.BrdName,
 				Path:       path,
 				SelectType: manSelectType(m),
@@ -641,14 +641,14 @@ func handleManArticle(c *Context, w http.ResponseWriter, brd *pttbbs.Board, path
 	})
 }
 
-func manSelectType(m pttbbs.SelectMethod) bbspb.ArticleRequest_SelectType {
+func manSelectType(m pttbbs.SelectMethod) manpb.ArticleRequest_SelectType {
 	switch m {
 	case pttbbs.SelectHead:
-		return bbspb.ArticleRequest_SELECT_HEAD
+		return manpb.ArticleRequest_SELECT_HEAD
 	case pttbbs.SelectTail:
-		return bbspb.ArticleRequest_SELECT_TAIL
+		return manpb.ArticleRequest_SELECT_TAIL
 	case pttbbs.SelectPart:
-		return bbspb.ArticleRequest_SELECT_FULL
+		return manpb.ArticleRequest_SELECT_FULL
 	default:
 		panic("unknown select type")
 	}

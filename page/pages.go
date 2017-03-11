@@ -3,7 +3,7 @@ package page
 import (
 	"net/http"
 
-	bbspb "github.com/ptt/pttweb/proto"
+	manpb "github.com/ptt/pttweb/proto/man"
 	"github.com/ptt/pttweb/pttbbs"
 )
 
@@ -93,7 +93,7 @@ func (BbsArticle) TemplateName() string { return TnameBbsArticle }
 type ManIndex struct {
 	Board   pttbbs.Board
 	Path    string
-	Entries []*bbspb.Entry
+	Entries []*manpb.Entry
 }
 
 func (ManIndex) TemplateName() string { return TnameManIndex }
