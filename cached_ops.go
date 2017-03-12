@@ -15,7 +15,7 @@ import (
 const (
 	EntryPerPage = 20
 
-	CtxKeyArticleRequest = `ContextArticleRequest`
+	CtxKeyBoardname = `ContextBoardname`
 )
 
 type BbsIndexRequest struct {
@@ -129,9 +129,13 @@ func (r *ArticleRequest) String() string {
 	return fmt.Sprintf("pttweb:%v/%v/%v", r.Namespace, r.Brd.BrdName, r.Filename)
 }
 
+func (r *ArticleRequest) Boardname() string {
+	return r.Brd.BrdName
+}
+
 func generateArticle(key cache.Key) (cache.Cacheable, error) {
 	r := key.(*ArticleRequest)
-	ctx := context.WithValue(context.TODO(), CtxKeyArticleRequest, r)
+	ctx := context.WithValue(context.TODO(), CtxKeyBoardname, r)
 
 	p, err := r.Select(pttbbs.SelectHead, 0, HeadSize)
 	if err != nil {
@@ -202,8 +206,13 @@ func (r *ArticlePartRequest) String() string {
 	return fmt.Sprintf("pttweb:bbs/%v/%v#%v,%v", r.Brd.BrdName, r.Filename, r.CacheKey, r.Offset)
 }
 
+func (r *ArticlePartRequest) Boardname() string {
+	return r.Brd.BrdName
+}
+
 func generateArticlePart(key cache.Key) (cache.Cacheable, error) {
 	r := key.(*ArticlePartRequest)
+	ctx := context.WithValue(context.TODO(), CtxKeyBoardname, r)
 
 	p, err := ptt.GetArticleSelect(r.Brd.Bid, pttbbs.SelectHead, r.Filename, r.CacheKey, r.Offset, -1)
 	if err == pttbbs.ErrNotFound {
@@ -222,6 +231,7 @@ func generateArticlePart(key cache.Key) (cache.Cacheable, error) {
 	if len(p.Content) > 0 {
 		ar := article.NewRenderer()
 		ar.DisableArticleHeader = true
+		ar.Context = ctx
 		buf, err := ar.Render(p.Content)
 		if err != nil {
 			return nil, err

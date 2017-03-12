@@ -48,15 +48,19 @@ func findAidText(ctx context.Context, input []byte) (rcs []richcontent.RichConte
 	return rcs, nil
 }
 
+type boardname interface {
+	Boardname() string
+}
+
 func handleAidText(ctx context.Context, input []byte, m richcontent.MatchIndices) (string, error) {
-	req, ok := ctx.Value(CtxKeyArticleRequest).(*ArticleRequest)
+	bn, ok := ctx.Value(CtxKeyBoardname).(boardname)
 	if !ok {
 		log.Println("no ArticleRequest present")
 		return "", nil // Silently fail
 	}
 
 	aidString := string(m.ByteSliceOf(input, 1))
-	return aidAndBrdnameToArticle(req.Brd.BrdName, aidString)
+	return aidAndBrdnameToArticle(bn.Boardname(), aidString)
 }
 
 func handleAidBoardText(ctx context.Context, input []byte, m richcontent.MatchIndices) (string, error) {
