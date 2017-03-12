@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/ptt/pttweb/article"
+	"github.com/ptt/pttweb/atomfeed"
 	"github.com/ptt/pttweb/cache"
 	"github.com/ptt/pttweb/pttbbs"
 
@@ -98,8 +99,18 @@ func generateBoardAtomFeed(key cache.Key) (cache.Cacheable, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Fetch snippets and contruct posts.
+	var posts []*atomfeed.PostEntry
+	for _, article := range articles {
+		// Use an empty string when error.
+		snippet, _ := getArticleSnippet(r.Brd, article.FileName)
+		posts = append(posts, &atomfeed.PostEntry{
+			Article: article,
+			Snippet: snippet,
+		})
+	}
 
-	feed, err := atomConverter.Convert(r.Brd, articles)
+	feed, err := atomConverter.Convert(r.Brd, posts)
 	if err != nil {
 		log.Println("atomfeed: Convert:", err)
 		// Don't return error but cache that it's invalid.
@@ -108,6 +119,24 @@ func generateBoardAtomFeed(key cache.Key) (cache.Cacheable, error) {
 		Feed:    feed,
 		IsValid: err == nil,
 	}, nil
+}
+
+const SnippetHeadSize = 16 * 1024 // Enough for 8 pages of 80x24.
+
+func getArticleSnippet(brd pttbbs.Board, filename string) (string, error) {
+	p, err := ptt.GetArticleSelect(brd.Bid, pttbbs.SelectHead, filename, "", 0, SnippetHeadSize)
+	if err != nil {
+		return "", err
+	}
+	if len(p.Content) == 0 {
+		return "", pttbbs.ErrNotFound
+	}
+
+	r := article.NewRenderer()
+	if _, err = r.Render(p.Content); err != nil {
+		return "", err
+	}
+	return r.PreviewContent(), nil
 }
 
 const (
