@@ -3,6 +3,7 @@ package article
 import (
 	"bytes"
 	"log"
+	"strings"
 
 	"github.com/ptt/pttweb/ansi"
 	"github.com/ptt/pttweb/pttbbs"
@@ -220,15 +221,23 @@ func (r *Renderer) endOfLine() {
 	}
 
 	if !parsed {
+		isMainContent := false
 		if len(r.lineSegs) > 0 {
 			if pttbbs.MatchPrefixBytesToStrings(line, pttbbs.QuotePrefixStrings) {
 				r.lineSegs[0].TermState.SetColor(6, DefaultBg, NoFlags)
 			} else if pttbbs.MatchPrefixBytesToStrings(line, pttbbs.SignaturePrefixStrings) {
 				r.lineSegs[0].TermState.SetColor(2, DefaultBg, NoFlags)
+			} else {
+				// Non-empty, not quote, and not signature line.
+				isMainContent = true
 			}
 		}
 
-		if r.previewLineCount < kPreviewContentLines {
+		// Collect non-empty lines as preview starting at first main
+		// content line.
+		isEmpty := len(strings.TrimSpace(string(line))) == 0
+		canCollect := !isEmpty && (r.previewLineCount == 0 && isMainContent || r.previewLineCount > 0)
+		if canCollect && r.previewLineCount < kPreviewContentLines {
 			r.previewContent += string(line)
 			r.previewLineCount++
 		}
