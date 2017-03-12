@@ -192,7 +192,8 @@ func createRouter() *mux.Router {
 
 	// Feed
 	r.Path(ReplaceVars(`/atom/{brdname}.xml`)).
-		Handler(ErrorWrapper(handleBoardAtomFeed))
+		Handler(ErrorWrapper(handleBoardAtomFeed)).
+		Name("atomfeed")
 
 	// Post
 	r.Path(ReplaceVars(`/bbs/{brdname}/{filename}.html`)).
@@ -669,8 +670,8 @@ func hasPermViewBoard(c *Context, brd *pttbbs.Board) error {
 	}
 	if brd.Over18 {
 		if config.EnableOver18Cookie {
-			if c.IsCrawler() {
-				// Crawlers don't have age
+			if c.IsCrawler() || c.IsOver18CheckSkipped() {
+				// Crawlers or machine-to-machine requests.
 			} else if !c.IsOver18() {
 				return shouldAskOver18Error(c)
 			}
