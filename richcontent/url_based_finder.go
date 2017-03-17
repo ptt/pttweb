@@ -3,6 +3,7 @@ package richcontent
 import (
 	"fmt"
 	"html"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -56,9 +57,12 @@ func imageHtmlTag(urlString string) string {
 // Handlers
 
 func handleYoutube(ctx context.Context, urlBytes []byte, match MatchIndices) ([]Component, error) {
-	return []Component{MakeComponent(fmt.Sprintf(
-		`<div class="resize-container"><div class="resize-content"><iframe class="youtube-player" type="text/html" src="//www.youtube.com/embed/%s" frameborder="0" allowfullscreen></iframe></div></div>`,
-		string(match.ByteSliceOf(urlBytes, 1))))}, nil
+	id := url.PathEscape(string(match.ByteSliceOf(urlBytes, 1)))
+	return []Component{
+		MakeComponent(fmt.Sprintf(
+			`<div class="resize-container"><div class="resize-content"><iframe class="youtube-player" type="text/html" src="//www.youtube.com/embed/%s" frameborder="0" allowfullscreen></iframe></div></div>`,
+			id)),
+	}, nil
 }
 
 func handleSameSchemeImage(ctx context.Context, urlBytes []byte, match MatchIndices) ([]Component, error) {
