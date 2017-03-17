@@ -37,7 +37,7 @@ type UrlPattern struct {
 
 var defaultUrlPatterns = []*UrlPattern{
 	newUrlPattern(`^https?://(?:www\.youtube\.com/watch\?(?:.+&)*v=|youtu\.be/)([\w\-]+)`, handleYoutube),
-	newUrlPattern(`^https?:(//i\.imgur\.com/[\.\w]+)$`, handleSameSchemeImage), // Note: cuz some users use http
+	newUrlPattern(`^https?://i\.imgur\.com/([\w]+)\.(?i:png|jpg|gif)$`, handleImgur), // Note: cuz some users use http
 	newUrlPattern(`^https?://imgur\.com/([,\w]+)(?:\#(\d+))?[^/]*$`, handleImgur),
 	newUrlPattern(`^http://picmoe\.net/d\.php\?id=(\d+)`, handlePicmoe),
 	newUrlPattern(`\.(?i:png|jpg|gif)$`, handleGenericImage),
@@ -72,8 +72,10 @@ func handleSameSchemeImage(ctx context.Context, urlBytes []byte, match MatchIndi
 func handleImgur(ctx context.Context, urlBytes []byte, match MatchIndices) ([]Component, error) {
 	var comps []Component
 	for _, id := range strings.Split(string(match.ByteSliceOf(urlBytes, 1)), ",") {
-		link := fmt.Sprintf(`//i.imgur.com/%s.jpg`, id)
-		comps = append(comps, MakeComponent(imageHtmlTag(link)))
+		escapedId := url.PathEscape(id)
+		comps = append(comps, MakeComponent(
+			fmt.Sprintf(`<blockquote class="imgur-embed-pub" lang="en" data-id="%s"><a href="//imgur.com/%s"></a></blockquote><script async src="//s.imgur.com/min/embed.js" charset="utf-8"></script>`, escapedId, escapedId),
+		))
 	}
 	return comps, nil
 }
