@@ -37,30 +37,26 @@ func generateBbsIndex(key cache.Key) (cache.Cacheable, error) {
 		IsValid: true,
 	}
 
-	count, err := ptt.GetArticleCount(r.Brd.Bid)
-	if err != nil {
-		return nil, err
-	}
-
 	// Handle paging
-	paging := NewPaging(EntryPerPage, count)
+	paging := NewPaging(EntryPerPage, r.Brd.NumPosts)
 	if page == 0 {
 		page = paging.LastPageNo()
 		paging.SetPageNo(page)
-	} else if err = paging.SetPageNo(page); err != nil {
+	} else if err := paging.SetPageNo(page); err != nil {
 		return nil, err
 	}
 	bbsindex.TotalPage = paging.LastPageNo()
 
 	// Fetch article list
-	bbsindex.Articles, err = ptt.GetArticleList(r.Brd.Bid, paging.Cursor())
+	var err error
+	bbsindex.Articles, err = ptt.GetArticleList(r.Brd.Ref(), paging.Cursor())
 	if err != nil {
 		return nil, err
 	}
 
 	// Fetch bottoms when at last page
 	if page == paging.LastPageNo() {
-		bbsindex.Bottoms, err = ptt.GetBottomList(r.Brd.Bid)
+		bbsindex.Bottoms, err = ptt.GetBottomList(r.Brd.Ref())
 		if err != nil {
 			return nil, err
 		}
@@ -95,7 +91,7 @@ func generateBoardAtomFeed(key cache.Key) (cache.Cacheable, error) {
 	}
 
 	// Fetch article list
-	articles, err := ptt.GetArticleList(r.Brd.Bid, -20)
+	articles, err := ptt.GetArticleList(r.Brd.Ref(), -20)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +120,7 @@ func generateBoardAtomFeed(key cache.Key) (cache.Cacheable, error) {
 const SnippetHeadSize = 16 * 1024 // Enough for 8 pages of 80x24.
 
 func getArticleSnippet(brd pttbbs.Board, filename string) (string, error) {
-	p, err := ptt.GetArticleSelect(brd.Bid, pttbbs.SelectHead, filename, "", 0, SnippetHeadSize)
+	p, err := ptt.GetArticleSelect(brd.Ref(), pttbbs.SelectHead, filename, "", 0, SnippetHeadSize)
 	if err != nil {
 		return "", err
 	}
@@ -243,7 +239,7 @@ func generateArticlePart(key cache.Key) (cache.Cacheable, error) {
 	r := key.(*ArticlePartRequest)
 	ctx := context.WithValue(context.TODO(), CtxKeyBoardname, r)
 
-	p, err := ptt.GetArticleSelect(r.Brd.Bid, pttbbs.SelectHead, r.Filename, r.CacheKey, r.Offset, -1)
+	p, err := ptt.GetArticleSelect(r.Brd.Ref(), pttbbs.SelectHead, r.Filename, r.CacheKey, r.Offset, -1)
 	if err == pttbbs.ErrNotFound {
 		// Returns an invalid result
 		return new(ArticlePart), nil

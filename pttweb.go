@@ -229,7 +229,7 @@ func templateFuncMap() template.FuncMap {
 			return router.Get("classlist").URLPath("bid", strconv.Itoa(bid))
 		},
 		"route_classlist": func(b pttbbs.Board) (*url.URL, error) {
-			return router.Get("classlist").URLPath("bid", strconv.Itoa(b.Bid))
+			return router.Get("classlist").URLPath("bid", strconv.FormatUint(uint64(b.Bid), 10))
 		},
 		"valid_article": func(a pttbbs.Article) bool {
 			return pttbbs.IsValidArticleFileName(a.FileName)
@@ -345,7 +345,7 @@ func handleAskOver18(c *Context, w http.ResponseWriter) error {
 }
 
 func handleClsRoot(c *Context, w http.ResponseWriter) error {
-	return handleClsWithBid(c, w, 1)
+	return handleClsWithBid(c, w, pttbbs.BoardID(1))
 }
 
 func handleCls(c *Context, w http.ResponseWriter) error {
@@ -354,24 +354,24 @@ func handleCls(c *Context, w http.ResponseWriter) error {
 	if err != nil {
 		return err
 	}
-	return handleClsWithBid(c, w, bid)
+	return handleClsWithBid(c, w, pttbbs.BoardID(bid))
 }
 
-func handleClsWithBid(c *Context, w http.ResponseWriter, bid int) error {
+func handleClsWithBid(c *Context, w http.ResponseWriter, bid pttbbs.BoardID) error {
 	if bid < 1 {
 		return NewNotFoundError(fmt.Errorf("invalid bid: %v", bid))
 	}
 
-	children, err := ptt.GetBoardChildren(bid)
+	board, err := pttbbs.OneBoard(ptt.GetBoards(pttbbs.BoardRefByBid(bid)))
 	if err != nil {
 		return err
 	}
-	boards, err := ptt.GetBoards(children)
+	children, err := ptt.GetBoards(pttbbs.BoardRefsByBid(board.Children)...)
 	if err != nil {
 		return err
 	}
 	return page.ExecutePage(w, &page.Classlist{
-		Boards: validBoards(boards),
+		Boards: validBoards(children),
 	})
 }
 
@@ -505,7 +505,7 @@ func handleArticleCommon(c *Context, w http.ResponseWriter, brdname, filename st
 		Brd:       *brd,
 		Filename:  filename,
 		Select: func(m pttbbs.SelectMethod, offset, maxlen int) (*pttbbs.ArticlePart, error) {
-			return ptt.GetArticleSelect(brd.Bid, m, filename, "", offset, maxlen)
+			return ptt.GetArticleSelect(brd.Ref(), m, filename, "", offset, maxlen)
 		},
 	}, ZeroArticle, ArticleCacheTimeout, generateArticle)
 	// Try older filename when not found.
@@ -797,34 +797,5 @@ func manSelectType(m pttbbs.SelectMethod) manpb.ArticleRequest_SelectType {
 		return manpb.ArticleRequest_SELECT_FULL
 	default:
 		panic("unknown select type")
-	}
-}
-
-func boardlist(ptt pttbbs.Pttbbs, indent string, root int, loop map[int]bool) {
-	if loop[root] {
-		//fmt.Println(indent, "loop skipped")
-		return
-	}
-	loop[root] = true
-
-	children, err := ptt.GetBoardChildren(root)
-	if err != nil {
-		fmt.Print(err)
-		return
-	}
-
-	for _, bid := range children {
-		if brd, err := ptt.GetBoard(bid); err == nil {
-			if !brd.Hidden {
-				//fmt.Println(indent, bid, brd)
-				if !brd.IsBoard {
-					boardlist(ptt, indent+"  ", bid, loop)
-				} else {
-					fmt.Println(brd.BrdName)
-				}
-			}
-		} else {
-			//fmt.Println(indent, bid, err)
-		}
 	}
 }

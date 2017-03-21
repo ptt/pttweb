@@ -2,7 +2,6 @@ package pttbbs
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"google.golang.org/grpc"
@@ -26,47 +25,10 @@ func NewGrpcRemotePtt(boarddAddr string) (*GrpcRemotePtt, error) {
 	}, nil
 }
 
-func (p *GrpcRemotePtt) getBoard(ref *apipb.BoardRef) (*apipb.Board, error) {
-	rep, err := p.service.Board(context.TODO(), &apipb.BoardRequest{
-		Ref: []*apipb.BoardRef{ref},
-	}, grpcCallOpts...)
-	if err != nil {
-		return nil, err
-	}
-	if len(rep.Boards) != 1 {
-		return nil, fmt.Errorf("%v boards received, expected 1", len(rep.Boards))
-	}
-	return rep.Boards[0], nil
-}
-
-func boardRefByBid(bid int) *apipb.BoardRef {
-	return &apipb.BoardRef{Ref: &apipb.BoardRef_Bid{int32(bid)}}
-}
-
-func boardRefByName(name string) *apipb.BoardRef {
-	return &apipb.BoardRef{Ref: &apipb.BoardRef_Name{name}}
-}
-
-func (p *GrpcRemotePtt) BrdName2Bid(brdname string) (int, error) {
-	b, err := p.getBoard(boardRefByName(brdname))
-	if err != nil {
-		return 0, err
-	}
-	return int(b.Bid), nil
-}
-
-func (p *GrpcRemotePtt) GetBoard(bid int) (Board, error) {
-	b, err := p.getBoard(boardRefByBid(bid))
-	if err != nil {
-		return Board{}, err
-	}
-	return toBoard(b), nil
-}
-
-func (p *GrpcRemotePtt) GetBoards(bids []int) ([]Board, error) {
-	refs := make([]*apipb.BoardRef, len(bids))
-	for i, bid := range bids {
-		refs[i] = boardRefByBid(bid)
+func (p *GrpcRemotePtt) GetBoards(brefs ...BoardRef) ([]Board, error) {
+	refs := make([]*apipb.BoardRef, len(brefs))
+	for i, ref := range brefs {
+		refs[i] = ref.boardRef()
 	}
 	rep, err := p.service.Board(context.TODO(), &apipb.BoardRequest{
 		Ref: refs,
@@ -83,46 +45,36 @@ func (p *GrpcRemotePtt) GetBoards(bids []int) ([]Board, error) {
 
 func toBoard(b *apipb.Board) Board {
 	return Board{
-		Bid:     int(b.Bid),
-		IsBoard: !hasFlag(b.Attributes, BoardGroup),
-		Over18:  hasFlag(b.Attributes, BoardOver18),
-		Hidden:  false, // All returned boards are public.
-		BrdName: b.Name,
-		Title:   b.Title,
-		Class:   b.Bclass,
-		BM:      b.RawModerators,
-		Parent:  int(b.Parent),
-		Nuser:   int(b.NumUsers),
+		Bid:      BoardID(b.Bid),
+		IsBoard:  !hasFlag(b.Attributes, BoardGroup),
+		Over18:   hasFlag(b.Attributes, BoardOver18),
+		Hidden:   false, // All returned boards are public.
+		BrdName:  b.Name,
+		Title:    b.Title,
+		Class:    b.Bclass,
+		BM:       b.RawModerators,
+		Parent:   int(b.Parent),
+		Nuser:    int(b.NumUsers),
+		NumPosts: int(b.NumPosts),
+		Children: toBoardIDs(b.Children),
 	}
+}
+
+func toBoardIDs(bids []uint32) []BoardID {
+	out := make([]BoardID, len(bids))
+	for i := range bids {
+		out[i] = BoardID(bids[i])
+	}
+	return out
 }
 
 func hasFlag(bits, mask uint32) bool {
 	return (bits & mask) == mask
 }
 
-func (p *GrpcRemotePtt) GetBoardChildren(bid int) ([]int, error) {
-	b, err := p.getBoard(boardRefByBid(bid))
-	if err != nil {
-		return nil, err
-	}
-	children := make([]int, len(b.Children))
-	for i, c := range b.Children {
-		children[i] = int(c)
-	}
-	return children, nil
-}
-
-func (p *GrpcRemotePtt) GetArticleCount(bid int) (int, error) {
-	b, err := p.getBoard(boardRefByBid(bid))
-	if err != nil {
-		return 0, err
-	}
-	return int(b.NumPosts), nil
-}
-
-func (p *GrpcRemotePtt) GetArticleList(bid, offset int) ([]Article, error) {
+func (p *GrpcRemotePtt) GetArticleList(ref BoardRef, offset int) ([]Article, error) {
 	rep, err := p.service.List(context.TODO(), &apipb.ListRequest{
-		Ref:          boardRefByBid(bid),
+		Ref:          ref.boardRef(),
 		IncludePosts: true,
 		Offset:       int32(offset),
 		Length:       20,
@@ -137,9 +89,9 @@ func (p *GrpcRemotePtt) GetArticleList(bid, offset int) ([]Article, error) {
 	return articles, nil
 }
 
-func (p *GrpcRemotePtt) GetBottomList(bid int) ([]Article, error) {
+func (p *GrpcRemotePtt) GetBottomList(ref BoardRef) ([]Article, error) {
 	rep, err := p.service.List(context.TODO(), &apipb.ListRequest{
-		Ref:            boardRefByBid(bid),
+		Ref:            ref.boardRef(),
 		IncludeBottoms: true,
 	}, grpcCallOpts...)
 	if err != nil {
@@ -165,17 +117,9 @@ func toArticle(p *apipb.Post) Article {
 	}
 }
 
-func (p *GrpcRemotePtt) GetArticleContent(bid int, filename string) (content []byte, err error) {
-	a, err := p.GetArticleSelect(bid, SelectPart, filename, "", 0, -1)
-	if err != nil {
-		return nil, err
-	}
-	return a.Content, nil
-}
-
-func (p *GrpcRemotePtt) GetArticleSelect(bid int, meth SelectMethod, filename, cacheKey string, offset, maxlen int) (*ArticlePart, error) {
+func (p *GrpcRemotePtt) GetArticleSelect(ref BoardRef, meth SelectMethod, filename, cacheKey string, offset, maxlen int) (*ArticlePart, error) {
 	rep, err := p.service.Content(context.TODO(), &apipb.ContentRequest{
-		BoardRef:         boardRefByBid(bid),
+		BoardRef:         ref.boardRef(),
 		Filename:         filename,
 		ConsistencyToken: cacheKey,
 		PartialOptions: &apipb.PartialOptions{

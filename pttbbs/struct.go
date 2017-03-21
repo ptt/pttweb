@@ -3,36 +3,55 @@ package pttbbs
 import (
 	"errors"
 	"time"
+
+	apipb "github.com/ptt/pttweb/proto/api"
 )
 
 var (
 	ErrNotFound = errors.New("not found")
 )
 
+type BoardID uint32
+
+type BoardRef interface {
+	boardRef() *apipb.BoardRef
+}
+
 type Pttbbs interface {
-	GetBoardChildren(bid int) (children []int, err error)
-	GetBoard(bid int) (brd Board, err error)
-	GetBoards(bids []int) (brd []Board, err error)
-	GetArticleCount(bid int) (int, error)
-	GetArticleList(bid, offset int) ([]Article, error)
-	GetBottomList(bid int) ([]Article, error)
-	GetArticleContent(bid int, filename string) ([]byte, error)
-	BrdName2Bid(brdname string) (int, error)
-	GetArticleSelect(bid int, meth SelectMethod, filename, cacheKey string, offset, maxlen int) (*ArticlePart, error)
+	GetBoards(refs ...BoardRef) ([]Board, error)
+	GetArticleList(ref BoardRef, offset int) ([]Article, error)
+	GetBottomList(ref BoardRef) ([]Article, error)
+	GetArticleSelect(ref BoardRef, meth SelectMethod, filename, cacheKey string, offset, maxlen int) (*ArticlePart, error)
 	Hotboards() ([]Board, error)
 }
 
+func OneBoard(boards []Board, err error) (Board, error) {
+	if err != nil {
+		return Board{}, err
+	}
+	if len(boards) != 1 {
+		return Board{}, errors.New("expect one board")
+	}
+	return boards[0], nil
+}
+
 type Board struct {
-	Bid     int
-	IsBoard bool
-	Over18  bool
-	Hidden  bool
-	BrdName string
-	Title   string
-	Class   string
-	BM      string
-	Parent  int
-	Nuser   int
+	Bid      BoardID
+	IsBoard  bool
+	Over18   bool
+	Hidden   bool
+	BrdName  string
+	Title    string
+	Class    string
+	BM       string
+	Parent   int
+	Nuser    int
+	NumPosts int
+	Children []BoardID
+}
+
+func (b Board) Ref() BoardRef {
+	return BoardRefByBid(b.Bid)
 }
 
 type Article struct {

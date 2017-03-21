@@ -54,12 +54,7 @@ func getBoardByNameCached(brdname string) (*pttbbs.Board, error) {
 		return brd, nil
 	}
 
-	bid, err := ptt.BrdName2Bid(brdname)
-	if err != nil {
-		return nil, err
-	}
-
-	board, err := ptt.GetBoard(bid)
+	board, err := pttbbs.OneBoard(ptt.GetBoards(pttbbs.BoardRefByName(brdname)))
 	if err != nil {
 		return nil, err
 	}
