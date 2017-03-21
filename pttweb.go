@@ -81,14 +81,10 @@ func main() {
 	}
 
 	// Init RemotePtt
-	if config.UseGrpcForBoardd {
-		var err error
-		ptt, err = pttbbs.NewGrpcRemotePtt(config.BoarddAddress)
-		if err != nil {
-			log.Fatal("cannot connect to boardd:", config.BoarddAddress, err)
-		}
-	} else {
-		ptt = pttbbs.NewRemotePtt(config.BoarddAddress, config.BoarddMaxConn)
+	var err error
+	ptt, err = pttbbs.NewGrpcRemotePtt(config.BoarddAddress)
+	if err != nil {
+		log.Fatal("cannot connect to boardd:", config.BoarddAddress, err)
 	}
 
 	// Init mand connection

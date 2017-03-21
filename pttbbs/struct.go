@@ -1,6 +1,13 @@
 package pttbbs
 
-import "time"
+import (
+	"errors"
+	"time"
+)
+
+var (
+	ErrNotFound = errors.New("not found")
+)
 
 type Pttbbs interface {
 	GetBoardChildren(bid int) (children []int, err error)

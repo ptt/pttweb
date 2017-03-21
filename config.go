@@ -5,14 +5,12 @@ import "errors"
 type PttwebConfig struct {
 	Bind              []string
 	BoarddAddress     string
-	UseGrpcForBoardd  bool
 	MandAddress       string
 	MemcachedAddress  string
 	TemplateDirectory string
 	StaticPrefix      string
 	SitePrefix        string
 
-	BoarddMaxConn    int
 	MemcachedMaxConn int
 
 	GAAccount string
@@ -40,10 +38,6 @@ func (c *PttwebConfig) CheckAndFillDefaults() error {
 
 	if c.MemcachedAddress == "" {
 		return errors.New("memcached address not specified")
-	}
-
-	if c.BoarddMaxConn <= 0 {
-		c.BoarddMaxConn = DefaultBoarddMaxConn
 	}
 
 	if c.MemcachedMaxConn <= 0 {
