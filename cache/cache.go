@@ -4,8 +4,6 @@ import (
 	"errors"
 	"sync"
 	"time"
-
-	"github.com/ptt/pttweb/pttbbs"
 )
 
 type Key interface {
@@ -32,7 +30,7 @@ type resultChan chan result
 
 type CacheManager struct {
 	server   string
-	connPool *pttbbs.MemcacheConnPool
+	connPool *MemcacheConnPool
 
 	mu      sync.Mutex
 	pending map[string][]resultChan
@@ -41,7 +39,7 @@ type CacheManager struct {
 func NewCacheManager(server string, maxOpen int) *CacheManager {
 	return &CacheManager{
 		server:   server,
-		connPool: pttbbs.NewMemcacheConnPool(server, maxOpen),
+		connPool: NewMemcacheConnPool(server, maxOpen),
 		pending:  make(map[string][]resultChan),
 	}
 }

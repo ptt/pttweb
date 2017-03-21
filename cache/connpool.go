@@ -1,4 +1,4 @@
-package pttbbs
+package cache
 
 import (
 	"errors"
