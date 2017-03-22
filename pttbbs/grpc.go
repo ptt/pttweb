@@ -73,32 +73,28 @@ func hasFlag(bits, mask uint32) bool {
 }
 
 func (p *GrpcRemotePtt) GetArticleList(ref BoardRef, offset, length int) ([]Article, error) {
-	rep, err := p.service.List(context.TODO(), &apipb.ListRequest{
+	return p.doList(&apipb.ListRequest{
 		Ref:          ref.boardRef(),
 		IncludePosts: true,
 		Offset:       int32(offset),
 		Length:       int32(length),
-	}, grpcCallOpts...)
-	if err != nil {
-		return nil, err
-	}
-	var articles []Article
-	for _, a := range rep.Posts {
-		articles = append(articles, toArticle(a))
-	}
-	return articles, nil
+	}, func(rep *apipb.ListReply) []*apipb.Post { return rep.Posts })
 }
 
 func (p *GrpcRemotePtt) GetBottomList(ref BoardRef) ([]Article, error) {
-	rep, err := p.service.List(context.TODO(), &apipb.ListRequest{
+	return p.doList(&apipb.ListRequest{
 		Ref:            ref.boardRef(),
 		IncludeBottoms: true,
-	}, grpcCallOpts...)
+	}, func(rep *apipb.ListReply) []*apipb.Post { return rep.Bottoms })
+}
+
+func (p *GrpcRemotePtt) doList(req *apipb.ListRequest, extractArticles func(*apipb.ListReply) []*apipb.Post) ([]Article, error) {
+	rep, err := p.service.List(context.TODO(), req, grpcCallOpts...)
 	if err != nil {
 		return nil, err
 	}
 	var articles []Article
-	for _, a := range rep.Bottoms {
+	for _, a := range extractArticles(rep) {
 		articles = append(articles, toArticle(a))
 	}
 	return articles, nil
