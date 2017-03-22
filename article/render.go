@@ -16,10 +16,50 @@ const (
 	kPreviewContentLines = 5
 )
 
-type Renderer struct {
-	DisableArticleHeader bool
-	Context              context.Context
+type RenderOption func(*renderer)
 
+func WithContent(content []byte) RenderOption {
+	return func(r *renderer) {
+		r.content = content
+	}
+}
+
+func WithContext(ctx context.Context) RenderOption {
+	return func(r *renderer) {
+		r.ctx = ctx
+	}
+}
+
+func WithDisableArticleHeader() RenderOption {
+	return func(r *renderer) {
+		r.disableArticleHeader = true
+	}
+}
+
+type RenderedArticle interface {
+	ParsedTitle() string
+	PreviewContent() string
+	HTML() []byte
+}
+
+func Render(opts ...RenderOption) (RenderedArticle, error) {
+	r := newRenderer()
+	for _, opt := range opts {
+		opt(r)
+	}
+	if err := r.Render(); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+type renderer struct {
+	// Options.
+	content              []byte
+	disableArticleHeader bool
+	ctx                  context.Context
+
+	// Internal states.
 	buf    bytes.Buffer
 	lineNo int
 
@@ -40,17 +80,17 @@ type Renderer struct {
 	previewLineCount int
 }
 
-func NewRenderer() *Renderer {
-	ar := &Renderer{
-		Context:  context.TODO(),
+func newRenderer() *renderer {
+	ar := &renderer{
+		ctx:      context.TODO(),
 		mapper:   NewIndexMapper(2),
 		lineSegs: make([]Segment, 0, 8),
 	}
-	ar.Reset()
+	ar.init()
 	return ar
 }
 
-func (r *Renderer) Reset() {
+func (r *renderer) init() {
 	r.buf.Reset()
 	r.lineNo = 1
 
@@ -71,40 +111,41 @@ func (r *Renderer) Reset() {
 	r.previewLineCount = 0
 }
 
-func (r *Renderer) ParsedTitle() string {
+func (r *renderer) ParsedTitle() string {
 	return r.title
 }
 
-func (r *Renderer) PreviewContent() string {
+func (r *renderer) PreviewContent() string {
 	return r.previewContent
 }
 
-func (r *Renderer) Render(content []byte) (*bytes.Buffer, error) {
+func (r *renderer) HTML() []byte {
+	return r.buf.Bytes()
+}
+
+func (r *renderer) Render() error {
 	converter := &ansi.AnsiParser{
 		Rune:   r.oneRune,
 		Escape: r.escape,
 	}
-	if err := converter.ConvertFromUTF8(content); err != nil {
-		return nil, err
-	}
-	return &r.buf, nil
+	return converter.ConvertFromUTF8(r.content)
 }
 
-func (r *Renderer) currSeg() *Segment {
+func (r *renderer) currSeg() *Segment {
 	if len(r.lineSegs) == 0 || r.segClosed {
 		r.startSegment()
 	}
 	return &r.lineSegs[len(r.lineSegs)-1]
 }
 
-func (r *Renderer) escape(esc ansi.EscapeSequence) {
+func (r *renderer) escape(esc ansi.EscapeSequence) {
 	r.terminalState.ApplyEscapeSequence(esc)
 	if r.segClosed || !r.terminalState.Equal(&r.currSeg().TermState) {
 		r.startSegment()
 	}
 }
 
-func (r *Renderer) startSegment() {
+func (r *renderer) startSegment() {
 	if !r.segClosed {
 		r.endSegment()
 	}
@@ -116,7 +157,7 @@ func (r *Renderer) startSegment() {
 	r.segClosed = false
 }
 
-func (r *Renderer) endSegment() {
+func (r *renderer) endSegment() {
 	// Remove empty segment
 	if r.lineSegs[len(r.lineSegs)-1].Len() == 0 {
 		r.lineSegs = r.lineSegs[:len(r.lineSegs)-1]
@@ -125,7 +166,7 @@ func (r *Renderer) endSegment() {
 	r.segClosed = true
 }
 
-func (r *Renderer) oneRune(ru rune) {
+func (r *renderer) oneRune(ru rune) {
 	seg := r.currSeg()
 	r.mapper.Record(r.lineBuf.Len(), len(r.lineSegs)-1, seg.Len())
 	fastWriteHtmlEscapedRune(seg.Buffer, ru)
@@ -136,7 +177,7 @@ func (r *Renderer) oneRune(ru rune) {
 	}
 }
 
-func (r *Renderer) outputToSegment(i, off int) {
+func (r *renderer) outputToSegment(i, off int) {
 	for ; r.segIndex < i; r.segIndex++ {
 		s := &r.lineSegs[r.segIndex]
 		if r.segOffset > 0 {
@@ -167,20 +208,20 @@ func (r *Renderer) outputToSegment(i, off int) {
 	}
 }
 
-func (r *Renderer) skipToSegment(i, off int) {
+func (r *renderer) skipToSegment(i, off int) {
 	r.prematureCloseSegment()
 	r.segIndex = i
 	r.segOffset = off
 }
 
-func (r *Renderer) prematureCloseSegment() {
+func (r *renderer) prematureCloseSegment() {
 	if !r.segClosed {
 		r.lineSegs[r.segIndex].WriteClose(&r.buf)
 		r.segClosed = true
 	}
 }
 
-func (r *Renderer) matchFirstLineAndOutput(line []byte) bool {
+func (r *renderer) matchFirstLineAndOutput(line []byte) bool {
 	tag1, val1, tag2, val2, ok := pttbbs.ParseArticleFirstLine(r.lineBuf.Bytes())
 	if !ok {
 		return false
@@ -191,7 +232,7 @@ func (r *Renderer) matchFirstLineAndOutput(line []byte) bool {
 	return true
 }
 
-func (r *Renderer) writeMetaLine(tag, val []byte, divClass string) {
+func (r *renderer) writeMetaLine(tag, val []byte, divClass string) {
 	r.buf.WriteString(`<div class="` + divClass + `"><span class="` + ClassArticleMetaTag + `">`)
 	fastWriteHtmlEscaped(&r.buf, string(tag))
 	r.buf.WriteString(`</span>`)
@@ -200,13 +241,13 @@ func (r *Renderer) writeMetaLine(tag, val []byte, divClass string) {
 	r.buf.WriteString(`</span></div>`)
 }
 
-func (r *Renderer) endOfLine() {
+func (r *renderer) endOfLine() {
 	r.segClosed = true
 
 	line := r.lineBuf.Bytes()
 	parsed := false
 
-	if !r.DisableArticleHeader && r.acceptMetaLines && r.lineNo < 5 {
+	if !r.disableArticleHeader && r.acceptMetaLines && r.lineNo < 5 {
 		if r.lineNo == 1 && r.matchFirstLineAndOutput(line) {
 			parsed = true
 		} else if tag, val, ok := pttbbs.ParseArticleMetaLine(line); ok {
@@ -254,7 +295,7 @@ func (r *Renderer) endOfLine() {
 	r.lineNo++
 }
 
-func (r *Renderer) processNormalContentLine(line []byte) {
+func (r *renderer) processNormalContentLine(line []byte) {
 	// Detect push line
 	isPush := false
 	if matchPushLine(r.lineSegs) {
@@ -268,7 +309,7 @@ func (r *Renderer) processNormalContentLine(line []byte) {
 		isPush = true
 	}
 
-	rcs, err := richcontent.Find(r.Context, line)
+	rcs, err := richcontent.Find(r.ctx, line)
 	if err != nil {
 		rcs = nil
 		log.Println("warning: rendering article: richcontent.Find:", err)

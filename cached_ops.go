@@ -128,11 +128,11 @@ func getArticleSnippet(brd pttbbs.Board, filename string) (string, error) {
 		return "", pttbbs.ErrNotFound
 	}
 
-	r := article.NewRenderer()
-	if _, err = r.Render(p.Content); err != nil {
+	ra, err := article.Render(article.WithContent(p.Content))
+	if err != nil {
 		return "", err
 	}
-	return r.PreviewContent(), nil
+	return ra.PreviewContent(), nil
 }
 
 const (
@@ -191,14 +191,15 @@ func generateArticle(key cache.Key) (cache.Cacheable, error) {
 			return nil, err
 		}
 		if len(ptail.Content) > 0 {
-			ar := article.NewRenderer()
-			ar.DisableArticleHeader = true
-			ar.Context = ctx
-			buf, err := ar.Render(ptail.Content)
+			ra, err := article.Render(
+				article.WithContent(ptail.Content),
+				article.WithContext(ctx),
+				article.WithDisableArticleHeader(),
+			)
 			if err != nil {
 				return nil, err
 			}
-			a.ContentTailHtml = buf.Bytes()
+			a.ContentTailHtml = ra.HTML()
 		}
 		a.CacheKey = ptail.CacheKey
 		a.NextOffset = ptail.FileSize - TailSize + ptail.Offset + ptail.Length
@@ -207,15 +208,16 @@ func generateArticle(key cache.Key) (cache.Cacheable, error) {
 		a.NextOffset = p.Length
 	}
 
-	ar := article.NewRenderer()
-	ar.Context = ctx
-	buf, err := ar.Render(p.Content)
+	ra, err := article.Render(
+		article.WithContent(p.Content),
+		article.WithContext(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
-	a.ParsedTitle = ar.ParsedTitle()
-	a.PreviewContent = ar.PreviewContent()
-	a.ContentHtml = buf.Bytes()
+	a.ParsedTitle = ra.ParsedTitle()
+	a.PreviewContent = ra.PreviewContent()
+	a.ContentHtml = ra.HTML()
 	a.IsValid = true
 	return a, nil
 }
@@ -254,14 +256,15 @@ func generateArticlePart(key cache.Key) (cache.Cacheable, error) {
 	ap.NextOffset = r.Offset + p.Offset + p.Length
 
 	if len(p.Content) > 0 {
-		ar := article.NewRenderer()
-		ar.DisableArticleHeader = true
-		ar.Context = ctx
-		buf, err := ar.Render(p.Content)
+		ra, err := article.Render(
+			article.WithContent(p.Content),
+			article.WithContext(ctx),
+			article.WithDisableArticleHeader(),
+		)
 		if err != nil {
 			return nil, err
 		}
-		ap.ContentHtml = string(buf.Bytes())
+		ap.ContentHtml = string(ra.HTML())
 	}
 
 	return ap, nil
