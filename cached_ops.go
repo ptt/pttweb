@@ -49,7 +49,7 @@ func generateBbsIndex(key cache.Key) (cache.Cacheable, error) {
 
 	// Fetch article list
 	var err error
-	bbsindex.Articles, err = ptt.GetArticleList(r.Brd.Ref(), paging.Cursor())
+	bbsindex.Articles, err = ptt.GetArticleList(r.Brd.Ref(), paging.Cursor(), EntryPerPage)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func generateBoardAtomFeed(key cache.Key) (cache.Cacheable, error) {
 	}
 
 	// Fetch article list
-	articles, err := ptt.GetArticleList(r.Brd.Ref(), -20)
+	articles, err := ptt.GetArticleList(r.Brd.Ref(), -EntryPerPage, EntryPerPage)
 	if err != nil {
 		return nil, err
 	}

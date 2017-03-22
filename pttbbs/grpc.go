@@ -72,12 +72,12 @@ func hasFlag(bits, mask uint32) bool {
 	return (bits & mask) == mask
 }
 
-func (p *GrpcRemotePtt) GetArticleList(ref BoardRef, offset int) ([]Article, error) {
+func (p *GrpcRemotePtt) GetArticleList(ref BoardRef, offset, length int) ([]Article, error) {
 	rep, err := p.service.List(context.TODO(), &apipb.ListRequest{
 		Ref:          ref.boardRef(),
 		IncludePosts: true,
 		Offset:       int32(offset),
-		Length:       20,
+		Length:       int32(length),
 	}, grpcCallOpts...)
 	if err != nil {
 		return nil, err

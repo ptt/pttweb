@@ -19,7 +19,7 @@ type BoardRef interface {
 
 type Pttbbs interface {
 	GetBoards(refs ...BoardRef) ([]Board, error)
-	GetArticleList(ref BoardRef, offset int) ([]Article, error)
+	GetArticleList(ref BoardRef, offset, length int) ([]Article, error)
 	GetBottomList(ref BoardRef) ([]Article, error)
 	GetArticleSelect(ref BoardRef, meth SelectMethod, filename, cacheKey string, offset, maxlen int) (*ArticlePart, error)
 	Hotboards() ([]Board, error)
