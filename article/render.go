@@ -128,7 +128,14 @@ func (r *renderer) Render() error {
 		Rune:   r.oneRune,
 		Escape: r.escape,
 	}
-	return converter.ConvertFromUTF8(r.content)
+	if err := converter.ConvertFromUTF8(r.content); err != nil {
+		return err
+	}
+	// Simulate end of line if there isn't one at the end.
+	if r.lineBuf.Len() > 0 {
+		r.endOfLine()
+	}
+	return nil
 }
 
 func (r *renderer) currSeg() *Segment {
