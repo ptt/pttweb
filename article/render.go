@@ -187,41 +187,34 @@ func (r *renderer) oneRune(ru rune) {
 func (r *renderer) outputToSegment(i, off int) {
 	for ; r.segIndex < i; r.segIndex++ {
 		s := &r.lineSegs[r.segIndex]
-		if r.segOffset > 0 {
-			// half output
-			if r.segClosed {
-				s.WriteOpen(&r.buf)
-			}
-			r.buf.Write(s.InnerBytes()[r.segOffset:])
-			s.WriteClose(&r.buf)
-			r.segOffset = 0
-			r.segClosed = true
-		} else {
-			if !r.segClosed {
-				panic("Segment not closed at beginning of a segment is not allowed")
-			}
-			s.WriteTo(&r.buf)
-			r.segClosed = true
-		}
+		r.maybeOpenCurrentSegment()
+		r.buf.Write(s.InnerBytes()[r.segOffset:])
+		r.maybeCloseCurrentSegment()
+		// advance to next segment at offset 0.
+		r.segOffset = 0
 	}
 	if off > 0 {
 		s := &r.lineSegs[r.segIndex]
-		if r.segClosed {
-			s.WriteOpen(&r.buf)
-		}
+		r.maybeOpenCurrentSegment()
 		r.buf.Write(s.InnerBytes()[r.segOffset:off])
 		r.segOffset = off
-		r.segClosed = false
 	}
 }
 
 func (r *renderer) skipToSegment(i, off int) {
-	r.prematureCloseSegment()
+	r.maybeCloseCurrentSegment()
 	r.segIndex = i
 	r.segOffset = off
 }
 
-func (r *renderer) prematureCloseSegment() {
+func (r *renderer) maybeOpenCurrentSegment() {
+	if r.segClosed {
+		r.lineSegs[r.segIndex].WriteOpen(&r.buf)
+		r.segClosed = false
+	}
+}
+
+func (r *renderer) maybeCloseCurrentSegment() {
 	if !r.segClosed {
 		r.lineSegs[r.segIndex].WriteClose(&r.buf)
 		r.segClosed = true
@@ -251,6 +244,8 @@ func (r *renderer) writeMetaLine(tag, val []byte, divClass string) {
 func (r *renderer) endOfLine() {
 	r.segClosed = true
 
+	// Map pass the end of line to end of seg.
+	r.mapper.Record(r.lineBuf.Len(), len(r.lineSegs), 0)
 	line := r.lineBuf.Bytes()
 	parsed := false
 
@@ -331,15 +326,16 @@ func (r *renderer) processNormalContentLine(line []byte) {
 		r.outputToSegment(begin[0], begin[1])
 		if begin[0] == end[0] {
 			// same segment: embed
+			r.maybeOpenCurrentSegment()
 			r.buf.WriteString(linkBegin)
 			r.outputToSegment(end[0], end[1])
 			r.buf.WriteString(linkEnd)
 		} else {
 			// different segments: split, wrap-around
-			r.prematureCloseSegment()
+			r.maybeCloseCurrentSegment()
 			r.buf.WriteString(linkBegin)
 			r.outputToSegment(end[0], end[1])
-			r.prematureCloseSegment()
+			r.maybeCloseCurrentSegment()
 			r.buf.WriteString(linkEnd)
 		}
 	}
