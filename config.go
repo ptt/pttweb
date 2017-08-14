@@ -24,6 +24,20 @@ type PttwebConfig struct {
 	EnablePushStream            bool
 	PushStreamSharedSecret      string
 	PushStreamSubscribeLocation string
+
+	RecaptchaSiteKey    string
+	RecaptchaSecret     string
+	CaptchaInsertSecret string
+	CaptchaExpireSecs   int
+	CaptchaRedisConfig  *CaptchaRedisConfig
+}
+
+// See https://godoc.org/github.com/go-redis/redis#Options
+type CaptchaRedisConfig struct {
+	Network  string
+	Addr     string
+	Password string
+	DB       int
 }
 
 const (
@@ -45,4 +59,8 @@ func (c *PttwebConfig) CheckAndFillDefaults() error {
 	}
 
 	return nil
+}
+
+func (c *PttwebConfig) IsCaptchaConfigured() bool {
+	return c.RecaptchaSiteKey != "" && c.RecaptchaSecret != "" && c.CaptchaRedisConfig != nil
 }

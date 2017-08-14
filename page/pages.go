@@ -112,3 +112,33 @@ type ManArticle struct {
 }
 
 func (ManArticle) TemplateName() string { return TnameManArticle }
+
+type Captcha struct {
+	// Handle is the opaque handle for getting the verification key from
+	// database.
+	Handle string
+
+	// VerificationKey will be non-empty if the page should display the
+	// verification key. Otherwise, it should display the captcha.
+	VerificationKey string
+
+	// InternalErrMessage signals an error, and some error texts should be
+	// shown to user.
+	InternalErrMessage string
+
+	// CaptchaErr signals types of errors.
+	CaptchaErr CaptchaErr
+
+	// RecaptchaSiteKey is the recaptcha site key.
+	RecaptchaSiteKey string
+
+	// PostAction is the url to post response to.
+	PostAction string
+}
+
+func (Captcha) TemplateName() string { return TnameCaptcha }
+
+type CaptchaErr struct {
+	IsVerifyFailed bool
+	IsNotFound     bool
+}

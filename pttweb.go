@@ -112,6 +112,13 @@ func main() {
 		},
 	}
 
+	// Init captcha redis server.
+	if config.IsCaptchaConfigured() {
+		if err := initCaptchaRedisServer(config.CaptchaRedisConfig); err != nil {
+			log.Fatal("initCaptchaRedisServer:", err)
+		}
+	}
+
 	// Load templates
 	if err := page.LoadTemplates(config.TemplateDirectory, templateFuncMap()); err != nil {
 		log.Fatal("cannot load templates:", err)
@@ -213,6 +220,17 @@ func createRouter() *mux.Router {
 	r.Path(ReplaceVars(`/man/{fullpath}.html`)).
 		Handler(ErrorWrapper(handleMan)).
 		Name("manentry")
+
+	// Captcha
+	if config.IsCaptchaConfigured() {
+		r.Path(ReplaceVars(`/captcha`)).
+			Handler(ErrorWrapper(handleCaptcha)).
+			Name("captcha")
+
+		r.Path(ReplaceVars(`/captcha/insert`)).
+			Handler(ErrorWrapper(handleCaptchaInsert)).
+			Name("captcha_insert")
+	}
 
 	return r
 }

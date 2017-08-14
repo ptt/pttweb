@@ -9,6 +9,7 @@ const (
 	TnameAskOver18  = `askover18.html`
 	TnameManIndex   = `manindex.html`
 	TnameManArticle = `manarticle.html`
+	TnameCaptcha    = `captcha.html`
 
 	TnameLayout = `layout.html`
 	TnameCommon = `common.html`

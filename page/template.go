@@ -19,6 +19,7 @@ var (
 		{TnameAskOver18, TnameLayout, TnameCommon},
 		{TnameManIndex, TnameLayout, TnameCommon},
 		{TnameManArticle, TnameLayout, TnameCommon},
+		{TnameCaptcha, TnameLayout, TnameCommon},
 	}
 
 	tmpl TemplateMap
