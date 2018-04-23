@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strconv"
 
 	"github.com/ptt/pttweb/article"
 	"github.com/ptt/pttweb/atomfeed"
@@ -45,7 +46,6 @@ func generateBbsIndex(key cache.Key) (cache.Cacheable, error) {
 	} else if err := paging.SetPageNo(page); err != nil {
 		return nil, err
 	}
-	bbsindex.TotalPage = paging.LastPageNo()
 
 	// Fetch article list
 	var err error
@@ -63,13 +63,22 @@ func generateBbsIndex(key cache.Key) (cache.Cacheable, error) {
 	}
 
 	// Page links
+	if u, err := router.Get("bbsindex").URLPath("brdname", r.Brd.BrdName); err == nil {
+		bbsindex.LastPage = u.String()
+	}
+	pageLink := func(n int) string {
+		u, err := router.Get("bbsindex_page").URLPath("brdname", r.Brd.BrdName, "page", strconv.Itoa(n))
+		if err != nil {
+			return ""
+		}
+		return u.String()
+	}
+	bbsindex.FirstPage = pageLink(1)
 	if page > 1 {
-		bbsindex.HasPrevPage = true
-		bbsindex.PrevPage = page - 1
+		bbsindex.PrevPage = pageLink(page - 1)
 	}
 	if page < paging.LastPageNo() {
-		bbsindex.HasNextPage = true
-		bbsindex.NextPage = page + 1
+		bbsindex.NextPage = pageLink(page + 1)
 	}
 
 	return bbsindex, nil

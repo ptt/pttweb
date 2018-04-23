@@ -64,11 +64,10 @@ func (Classlist) TemplateName() string { return TnameClasslist }
 type BbsIndex struct {
 	Board pttbbs.Board
 
-	HasPrevPage bool
-	HasNextPage bool
-	PrevPage    int
-	NextPage    int
-	TotalPage   int
+	FirstPage string
+	PrevPage  string
+	NextPage  string
+	LastPage  string
 
 	Articles []pttbbs.Article
 	Bottoms  []pttbbs.Article
