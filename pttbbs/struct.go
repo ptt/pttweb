@@ -23,6 +23,7 @@ type Pttbbs interface {
 	GetBottomList(ref BoardRef) ([]Article, error)
 	GetArticleSelect(ref BoardRef, meth SelectMethod, filename, cacheKey string, offset, maxlen int) (*ArticlePart, error)
 	Hotboards() ([]Board, error)
+	Search(ref BoardRef, preds []SearchPredicate, offset, length int) (articles []Article, totalPosts int, err error)
 }
 
 func OneBoard(boards []Board, err error) (Board, error) {

@@ -164,3 +164,24 @@ func (p *GrpcRemotePtt) Hotboards() ([]Board, error) {
 	}
 	return boards, nil
 }
+
+func (p *GrpcRemotePtt) Search(ref BoardRef, preds []SearchPredicate, offset, length int) ([]Article, int, error) {
+	var filters []*apipb.SearchFilter
+	for _, pred := range preds {
+		filters = append(filters, pred.toSearchFilter())
+	}
+	rep, err := p.service.Search(context.TODO(), &apipb.SearchRequest{
+		Ref:    ref.boardRef(),
+		Filter: filters,
+		Offset: int32(offset),
+		Length: int32(length),
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	var articles []Article
+	for _, p := range rep.Posts {
+		articles = append(articles, toArticle(p))
+	}
+	return articles, int(rep.TotalPosts), nil
+}
