@@ -36,9 +36,11 @@ import (
 )
 
 const (
-	ArticleCacheTimeout          = time.Minute * 10
-	BbsIndexCacheTimeout         = time.Minute * 5
-	BbsIndexLastPageCacheTimeout = time.Minute * 1
+	ArticleCacheTimeout           = time.Minute * 10
+	BbsIndexCacheTimeout          = time.Minute * 5
+	BbsIndexLastPageCacheTimeout  = time.Minute * 1
+	BbsSearchCacheTimeout         = time.Minute * 10
+	BbsSearchLastPageCacheTimeout = time.Minute * 3
 )
 
 var (
@@ -47,6 +49,7 @@ var (
 )
 
 var ptt pttbbs.Pttbbs
+var pttSearch pttbbs.Pttbbs
 var mand manpb.ManServiceClient
 var router *mux.Router
 var cacheMgr *cache.CacheManager
@@ -85,6 +88,15 @@ func main() {
 	ptt, err = pttbbs.NewGrpcRemotePtt(config.BoarddAddress)
 	if err != nil {
 		log.Fatal("cannot connect to boardd:", config.BoarddAddress, err)
+	}
+
+	if config.SearchAddress != "" {
+		pttSearch, err = pttbbs.NewGrpcRemotePtt(config.SearchAddress)
+		if err != nil {
+			log.Fatal("cannot connect to boardd:", config.SearchAddress, err)
+		}
+	} else {
+		pttSearch = ptt
 	}
 
 	// Init mand connection
@@ -192,6 +204,9 @@ func createRouter() *mux.Router {
 	r.Path(ReplaceVars(`/bbs/{brdname}/index{page}.html`)).
 		Handler(ErrorWrapper(handleBbs)).
 		Name("bbsindex_page")
+	r.Path(ReplaceVars(`/bbs/{brdname}/search`)).
+		Handler(ErrorWrapper(handleBbsSearch)).
+		Name("bbssearch")
 
 	// Feed
 	r.Path(ReplaceVars(`/atom/{brdname}.xml`)).
@@ -439,8 +454,6 @@ func handleBbs(c *Context, w http.ResponseWriter) error {
 		timeout = BbsIndexCacheTimeout
 	}
 
-	var err error
-
 	brd, err := getBoardByName(c, brdname)
 	if err != nil {
 		return err
@@ -450,6 +463,99 @@ func handleBbs(c *Context, w http.ResponseWriter) error {
 		Brd:  *brd,
 		Page: pageNo,
 	}, ZeroBbsIndex, timeout, generateBbsIndex)
+	if err != nil {
+		return err
+	}
+	bbsindex := obj.(*BbsIndex)
+
+	if !bbsindex.IsValid {
+		return NewNotFoundError(fmt.Errorf("not a valid cache.BbsIndex: %v/%v", brd.BrdName, pageNo))
+	}
+
+	return page.ExecutePage(w, (*page.BbsIndex)(bbsindex))
+}
+
+func parseKeyValueTerm(term string) (pttbbs.SearchPredicate, bool) {
+	kv := strings.SplitN(term, ":", 2)
+	if len(kv) != 2 {
+		return nil, false
+	}
+	k, v := strings.ToLower(kv[0]), kv[1]
+	switch k {
+	case "author":
+		return pttbbs.WithAuthor(v), true
+	case "recommend":
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, false
+		}
+		return pttbbs.WithRecommend(n), true
+	}
+	return nil, false
+}
+
+func parseQuery(query string) ([]pttbbs.SearchPredicate, error) {
+	segs := strings.Split(query, " ")
+	var titleSegs []string
+	var preds []pttbbs.SearchPredicate
+	for _, s := range segs {
+		if p, ok := parseKeyValueTerm(s); ok {
+			preds = append(preds, p)
+		} else {
+			titleSegs = append(titleSegs, s)
+		}
+	}
+	title := strings.TrimSpace(strings.Join(titleSegs, " "))
+	if title != "" {
+		// Put title first.
+		preds = append([]pttbbs.SearchPredicate{
+			pttbbs.WithTitle(title),
+		}, preds...)
+	}
+	return preds, nil
+}
+
+func handleBbsSearch(c *Context, w http.ResponseWriter) error {
+	vars := mux.Vars(c.R)
+	brdname := vars["brdname"]
+
+	if c.R.ParseForm() != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return nil
+	}
+	form := c.R.Form
+	query := strings.TrimSpace(form.Get("q"))
+
+	pageNo := 1
+	// Note: TODO move timeout into the generating function.
+	timeout := BbsSearchLastPageCacheTimeout
+
+	if pageStr := form.Get("page"); pageStr != "" {
+		pg, err := strconv.Atoi(pageStr)
+		if err != nil || pg <= 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			return nil
+		}
+		pageNo = pg
+		timeout = BbsSearchCacheTimeout
+	}
+
+	preds, err := parseQuery(query)
+	if err != nil {
+		return err
+	}
+
+	brd, err := getBoardByName(c, brdname)
+	if err != nil {
+		return err
+	}
+
+	obj, err := cacheMgr.Get(&BbsSearchRequest{
+		Brd:   *brd,
+		Page:  pageNo,
+		Query: query,
+		Preds: preds,
+	}, ZeroBbsIndex, timeout, generateBbsSearch)
 	if err != nil {
 		return err
 	}

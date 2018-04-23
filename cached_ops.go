@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/url"
 	"strconv"
 
 	"github.com/ptt/pttweb/article"
@@ -79,6 +80,80 @@ func generateBbsIndex(key cache.Key) (cache.Cacheable, error) {
 	}
 	if page < paging.LastPageNo() {
 		bbsindex.NextPage = pageLink(page + 1)
+	}
+
+	return bbsindex, nil
+}
+
+type BbsSearchRequest struct {
+	Brd   pttbbs.Board
+	Page  int
+	Query string
+	Preds []pttbbs.SearchPredicate
+}
+
+func (r *BbsSearchRequest) String() string {
+	return fmt.Sprintf("pttweb:bbssearch/%v/%v/%v", r.Brd.BrdName, r.Page, r.Query)
+}
+
+func generateBbsSearch(key cache.Key) (cache.Cacheable, error) {
+	r := key.(*BbsSearchRequest)
+	page := r.Page
+	if page == 0 {
+		page = 1
+	}
+	offset := -EntryPerPage * page
+
+	bbsindex := &BbsIndex{
+		Board:   r.Brd,
+		Query:   r.Query,
+		IsValid: true,
+	}
+
+	// Search articles
+	articles, totalPosts, err := ptt.Search(r.Brd.Ref(), r.Preds, offset, EntryPerPage)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle paging
+	paging := NewPaging(EntryPerPage, totalPosts)
+	if lastPage := paging.LastPageNo(); page > lastPage {
+		articles = nil
+		bbsindex.IsValid = false
+	} else if page == lastPage {
+		// We may get extra entries for last page.
+		n := totalPosts % EntryPerPage
+		if n < len(articles) {
+			articles = articles[:n]
+		}
+	}
+
+	// Show the page in reverse order.
+	for i, j := 0, len(articles)-1; i < j; i, j = i+1, j-1 {
+		articles[i], articles[j] = articles[j], articles[i]
+	}
+	bbsindex.Articles = articles
+
+	// Page links, in newest first order.
+	pageLink := func(n int) string {
+		u, err := router.Get("bbssearch").URLPath("brdname", r.Brd.BrdName)
+		if err != nil {
+			return ""
+		}
+		q := url.Values{}
+		q.Set("q", r.Query)
+		q.Set("page", strconv.Itoa(n))
+		u.RawQuery = q.Encode()
+		return u.String()
+	}
+	bbsindex.FirstPage = pageLink(paging.LastPageNo())
+	bbsindex.LastPage = pageLink(1)
+	if page > 1 {
+		bbsindex.NextPage = pageLink(page - 1)
+	}
+	if page < paging.LastPageNo() {
+		bbsindex.PrevPage = pageLink(page + 1)
 	}
 
 	return bbsindex, nil

@@ -63,6 +63,7 @@ func (Classlist) TemplateName() string { return TnameClasslist }
 
 type BbsIndex struct {
 	Board pttbbs.Board
+	Query string
 
 	FirstPage string
 	PrevPage  string
