@@ -293,6 +293,15 @@ func templateFuncMap() template.FuncMap {
 		"route": func(where string, attrs ...string) (*url.URL, error) {
 			return router.Get(where).URLPath(attrs...)
 		},
+		"route_search_author": func(b pttbbs.Board, author string) (*url.URL, error) {
+			if !pttbbs.IsValidUserID(author) {
+				return nil, nil
+			}
+			return bbsSearchURL(b, "author:"+author)
+		},
+		"route_search_thread": func(b pttbbs.Board, title string) (*url.URL, error) {
+			return bbsSearchURL(b, "thread:"+pttbbs.Subject(title))
+		},
 		"static_prefix": func() string {
 			return config.StaticPrefix
 		},
@@ -475,6 +484,17 @@ func handleBbs(c *Context, w http.ResponseWriter) error {
 	return page.ExecutePage(w, (*page.BbsIndex)(bbsindex))
 }
 
+func bbsSearchURL(b pttbbs.Board, query string) (*url.URL, error) {
+	u, err := router.Get("bbssearch").URLPath("brdname", b.BrdName)
+	if err != nil {
+		return nil, err
+	}
+	q := url.Values{}
+	q.Set("q", query)
+	u.RawQuery = q.Encode()
+	return u, nil
+}
+
 func parseKeyValueTerm(term string) (pttbbs.SearchPredicate, bool) {
 	kv := strings.SplitN(term, ":", 2)
 	if len(kv) != 2 {
@@ -495,6 +515,13 @@ func parseKeyValueTerm(term string) (pttbbs.SearchPredicate, bool) {
 }
 
 func parseQuery(query string) ([]pttbbs.SearchPredicate, error) {
+	// Special case, thread takes up all the query.
+	if strings.HasPrefix(query, "thread:") {
+		return []pttbbs.SearchPredicate{
+			pttbbs.WithExactTitle(strings.TrimSpace(strings.TrimPrefix(query, "thread:"))),
+		}, nil
+	}
+
 	segs := strings.Split(query, " ")
 	var titleSegs []string
 	var preds []pttbbs.SearchPredicate

@@ -13,6 +13,13 @@ func WithTitle(title string) SearchPredicate {
 	}}
 }
 
+func WithExactTitle(title string) SearchPredicate {
+	return &searchPredicate{&apipb.SearchFilter{
+		Type:       apipb.SearchFilter_TYPE_EXACT_TITLE,
+		StringData: title,
+	}}
+}
+
 func WithAuthor(author string) SearchPredicate {
 	return &searchPredicate{&apipb.SearchFilter{
 		Type:       apipb.SearchFilter_TYPE_AUTHOR,
