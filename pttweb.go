@@ -501,6 +501,9 @@ func parseKeyValueTerm(term string) (pttbbs.SearchPredicate, bool) {
 		return nil, false
 	}
 	k, v := strings.ToLower(kv[0]), kv[1]
+	if len(v) == 0 {
+		return nil, false
+	}
 	switch k {
 	case "author":
 		return pttbbs.WithAuthor(v), true
