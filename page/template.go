@@ -2,9 +2,9 @@ package page
 
 import (
 	"errors"
+	"html/template"
 	"net/http"
 	"path/filepath"
-	"text/template"
 )
 
 type TemplateMap map[string]*template.Template

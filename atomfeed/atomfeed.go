@@ -3,7 +3,7 @@ package atomfeed
 import (
 	"bytes"
 	"fmt"
-	"text/template"
+	"html/template"
 	"time"
 
 	"github.com/ptt/pttweb/pttbbs"

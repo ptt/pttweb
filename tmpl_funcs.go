@@ -1,50 +1,51 @@
 package main
 
 import (
+	"html/template"
 	"strconv"
 
 	"github.com/ptt/pttweb/pttbbs"
 )
 
-func colored_counter(num int) string {
+func colored_counter(num int) template.HTML {
 	switch {
 	case num >= 100:
-		return `<span class="hl f1">爆</span>`
+		return template.HTML(`<span class="hl f1">爆</span>`)
 	case num >= 10:
-		return `<span class="hl f3">` + strconv.Itoa(num) + `</span>`
+		return template.HTML(`<span class="hl f3">` + strconv.Itoa(num) + `</span>`)
 	case num > 0:
-		return `<span class="hl f2">` + strconv.Itoa(num) + `</span>`
+		return template.HTML(`<span class="hl f2">` + strconv.Itoa(num) + `</span>`)
 	case num > -10:
 		return ""
 	case num > -100:
-		return `<span class="hl f0">X` + strconv.Itoa(-num/10) + `</span>`
+		return template.HTML(`<span class="hl f0">X` + strconv.Itoa(-num/10) + `</span>`)
 	default:
-		return `<span class="hl f0">XX</span>`
+		return template.HTML(`<span class="hl f0">XX</span>`)
 	}
 }
 
-func decorate_board_nuser(num int) string {
+func decorate_board_nuser(num int) template.HTML {
 	switch {
 	case num < 1:
 		return ""
 	case num <= 10:
-		return strconv.Itoa(num)
+		return template.HTML(strconv.Itoa(num))
 	case num <= 50:
-		return `<span class="hl f3">` + strconv.Itoa(num) + `</span>`
+		return template.HTML(`<span class="hl f3">` + strconv.Itoa(num) + `</span>`)
 	case num < 2000:
-		return `<span class="hl">` + strconv.Itoa(num) + `</span>`
+		return template.HTML(`<span class="hl">` + strconv.Itoa(num) + `</span>`)
 	case num < 5000:
-		return `<span class="hl f1">` + strconv.Itoa(num) + `</span>`
+		return template.HTML(`<span class="hl f1">` + strconv.Itoa(num) + `</span>`)
 	case num < 10000:
-		return `<span class="hl f4">` + strconv.Itoa(num) + `</span>`
+		return template.HTML(`<span class="hl f4">` + strconv.Itoa(num) + `</span>`)
 	case num < 30000:
-		return `<span class="hl f6">` + strconv.Itoa(num) + `</span>`
+		return template.HTML(`<span class="hl f6">` + strconv.Itoa(num) + `</span>`)
 	case num < 60000:
-		return `<span class="hl f2">` + strconv.Itoa(num) + `</span>`
+		return template.HTML(`<span class="hl f2">` + strconv.Itoa(num) + `</span>`)
 	case num < 100000:
-		return `<span class="hl f3">` + strconv.Itoa(num) + `</span>`
+		return template.HTML(`<span class="hl f3">` + strconv.Itoa(num) + `</span>`)
 	default:
-		return `<span class="hl f5">` + strconv.Itoa(num) + `</span>`
+		return template.HTML(`<span class="hl f5">` + strconv.Itoa(num) + `</span>`)
 	}
 }
 

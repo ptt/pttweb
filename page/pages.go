@@ -1,6 +1,7 @@
 package page
 
 import (
+	"html/template"
 	"net/http"
 
 	manpb "github.com/ptt/pttweb/proto/man"
@@ -83,8 +84,8 @@ type BbsArticle struct {
 	Description      string
 	Board            *pttbbs.Board
 	FileName         string
-	ContentHtml      string
-	ContentTailHtml  string
+	Content          template.HTML
+	ContentTail      template.HTML
 	ContentTruncated bool
 	PollUrl          string
 	LongPollUrl      string
@@ -106,8 +107,8 @@ type ManArticle struct {
 	Description      string
 	Board            *pttbbs.Board
 	Path             string
-	ContentHtml      string
-	ContentTailHtml  string
+	Content          template.HTML
+	ContentTail      template.HTML
 	ContentTruncated bool
 }
 

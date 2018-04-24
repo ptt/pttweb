@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"html/template"
 	"log"
 	"net"
 	"net/http"
@@ -17,7 +18,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"text/template"
 	"time"
 
 	"google.golang.org/grpc"
@@ -663,8 +663,8 @@ func handleArticleCommon(c *Context, w http.ResponseWriter, brdname, filename st
 		Description:      ar.PreviewContent,
 		Board:            brd,
 		FileName:         filename,
-		ContentHtml:      string(ar.ContentHtml),
-		ContentTailHtml:  string(ar.ContentTailHtml),
+		Content:          template.HTML(string(ar.ContentHtml)),
+		ContentTail:      template.HTML(string(ar.ContentTailHtml)),
 		ContentTruncated: ar.IsTruncated,
 		PollUrl:          pollUrl,
 		LongPollUrl:      longPollUrl,
@@ -905,8 +905,8 @@ func handleManArticle(c *Context, w http.ResponseWriter, brd *pttbbs.Board, path
 		Description:      ar.PreviewContent,
 		Board:            brd,
 		Path:             path,
-		ContentHtml:      string(ar.ContentHtml),
-		ContentTailHtml:  string(ar.ContentTailHtml),
+		Content:          template.HTML(string(ar.ContentHtml)),
+		ContentTail:      template.HTML(string(ar.ContentTailHtml)),
 		ContentTruncated: ar.IsTruncated,
 	})
 }
