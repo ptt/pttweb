@@ -111,7 +111,7 @@ func generateBbsSearch(key cache.Key) (cache.Cacheable, error) {
 	}
 
 	// Search articles
-	articles, totalPosts, err := ptt.Search(r.Brd.Ref(), r.Preds, offset, EntryPerPage)
+	articles, totalPosts, err := pttSearch.Search(r.Brd.Ref(), r.Preds, offset, EntryPerPage)
 	if err != nil {
 		return nil, err
 	}
