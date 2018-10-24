@@ -324,6 +324,7 @@ func setCommonResponseHeaders(w http.ResponseWriter) {
 	h := w.Header()
 	h.Set("Server", "Cryophoenix")
 	h.Set("Content-Type", "text/html; charset=utf-8")
+  h.Set("Content-Language", "zh-tw")
 }
 
 type ErrorWrapper func(*Context, http.ResponseWriter) error
