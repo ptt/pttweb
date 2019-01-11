@@ -14,6 +14,7 @@ var (
 		"MSNbot",
 		"facebookexternalhit",
 		"PlurkBot",
+		"PocketParser",
 		"Twitterbot",
 		"TelegramBot",
 		"CloudFlare-AlwaysOnline",
