@@ -1,18 +1,20 @@
 language: go
 
 go:
-    - 1.8
+    - 1.x
     - tip
 
 go_import_path: github.com/ptt/pttweb
 
 sudo: required
-dist: trusty
+dist: xenial
+addons:
+    apt:
+        update: true
+        packages:
+            - protobuf-compiler
 
 install:
-    - sudo add-apt-repository 'deb http://archive.ubuntu.com/ubuntu/ yakkety main'
-    - sudo apt-get -qq update
-    - sudo apt-get install -y protobuf-compiler
     - go get google.golang.org/grpc
     - go get -u github.com/golang/protobuf/{proto,protoc-gen-go}
     - make -C $GOPATH/src/github.com/ptt/pttweb/proto
