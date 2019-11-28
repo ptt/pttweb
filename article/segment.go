@@ -92,21 +92,6 @@ func (s *Segment) InnerBytes() []byte {
 	return s.Bytes()
 }
 
-func (s *Segment) Slice(i, j int) Segment {
-	b := s.Bytes()
-	if j < 0 {
-		j += len(b)
-	}
-	return Segment{
-		TermState: s.TermState,
-		Buffer:    bytes.NewBuffer(b),
-	}
-}
-
-func (s *Segment) Split(at int) (Segment, Segment) {
-	return s.Slice(0, at), s.Slice(at, -1)
-}
-
 func (s *Segment) TrimRight(cutset string) {
 	s.Truncate(len(bytes.TrimRight(s.Bytes(), cutset)))
 }
