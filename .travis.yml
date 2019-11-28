@@ -7,7 +7,7 @@ go:
 go_import_path: github.com/ptt/pttweb
 
 sudo: required
-dist: xenial
+dist: bionic
 addons:
     apt:
         update: true
