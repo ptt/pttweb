@@ -2,9 +2,12 @@ package cache
 
 import (
 	"errors"
+	"log"
 	"sync"
 	"time"
 )
+
+var errCacheMiss = errors.New("cache miss")
 
 type Key interface {
 	String() string
@@ -48,7 +51,11 @@ func (m *CacheManager) Get(key Key, tp NewableFromBytes, expire time.Duration, g
 	keyString := key.String()
 
 	// Check if can be served from cache
-	if data, err := m.getFromCache(keyString); err == nil && data != nil {
+	if data, err := m.getFromCache(keyString); err != nil {
+		if err != errCacheMiss {
+			log.Printf("getFromCache: key: %q, err: %v", keyString, err)
+		}
+	} else if data != nil {
 		return tp.NewFromBytes(data)
 	}
 
@@ -68,8 +75,10 @@ func (m *CacheManager) doGenerate(key Key, keyString string, expire time.Duratio
 	obj, err := generate(key)
 	if err == nil {
 		// There is no errors during generating, store result in cache
-		if data, err := obj.EncodeToBytes(); err == nil {
-			m.storeResultCache(keyString, data, expire)
+		if data, err := obj.EncodeToBytes(); err != nil {
+			log.Printf("obj.EncodeToBytes: key: %q, err: %v", keyString, err)
+		} else if err = m.storeResultCache(keyString, data, expire); err != nil {
+			log.Printf("storeResultCache: key: %q, err: %v", keyString, err)
 		}
 	}
 
@@ -109,13 +118,14 @@ func (m *CacheManager) getFromCache(key string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer m.connPool.ReleaseConn(memd, err)
 
 	res, err := memd.Get(key)
+	defer m.connPool.ReleaseConn(memd, err)
+
 	if err != nil {
 		return nil, err
 	} else if len(res) != 1 {
-		return nil, errors.New("cannot fetch cache")
+		return nil, errCacheMiss
 	}
 	return res[0].Value, nil
 }
