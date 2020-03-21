@@ -12,6 +12,8 @@ func TestUrlMatches(t *testing.T) {
 	check(t, "http://foo.com/? http://example.com", "http://foo.com/?", "http://example.com")
 	check(t, "[http://example.com/[({hmm})]", "http://example.com/[({hmm})]")
 	check(t, "(http://example.com/(Hi))", "http://example.com/(Hi))")
+	// Uppercase http doesn't match.
+	check(t, "HTTP://example.com")
 }
 
 func check(t *testing.T, input string, truths ...string) {

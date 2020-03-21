@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"log"
 	"regexp"
 
@@ -33,8 +34,13 @@ func init() {
 }
 
 func findAidText(ctx context.Context, input []byte) (rcs []richcontent.RichContent, err error) {
+	// Fast path.
+	if bytes.IndexByte(input, '#') < 0 {
+		return nil, nil
+	}
+
 	for _, p := range aidPatterns {
-		all := p.Pattern.FindAllStringSubmatchIndex(string(input), -1)
+		all := p.Pattern.FindAllSubmatchIndex(input, -1)
 		for _, m := range all {
 			link, err := p.Handler(ctx, input, richcontent.MatchIndices(m))
 			if err != nil {
