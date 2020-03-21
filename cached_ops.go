@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
@@ -93,7 +95,9 @@ type BbsSearchRequest struct {
 }
 
 func (r *BbsSearchRequest) String() string {
-	return fmt.Sprintf("pttweb:bbssearch/%v/%v/%v", r.Brd.BrdName, r.Page, r.Query)
+	queryHash := sha256.Sum256([]byte(r.Query))
+	query := base64.URLEncoding.EncodeToString(queryHash[:])
+	return fmt.Sprintf("pttweb:bbssearch/%v/%v/%v", r.Brd.BrdName, r.Page, query)
 }
 
 func generateBbsSearch(key cache.Key) (cache.Cacheable, error) {
