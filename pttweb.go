@@ -170,9 +170,9 @@ func main() {
 func ReplaceVars(p string) string {
 	var subs = [][]string{
 		{`aidc`, `[0-9A-Za-z\-_]+`},
-		{`brdname`, `[A-Za-z][0-9a-zA-Z_\.\-]+`},
+		{`brdname`, `[0-9A-Za-z][0-9A-Za-z_\.\-]+`},
 		{`filename`, `[MG]\.\d+\.A(?:\.[0-9A-F]+)?`},
-		{`fullpath`, `[0-9a-zA-Z_\.\-\/]+`},
+		{`fullpath`, `[0-9A-Za-z_\.\-\/]+`},
 		{`page`, `\d+`},
 	}
 	for _, s := range subs {
