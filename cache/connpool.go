@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/youtube/vitess/go/memcache"
+	"github.com/bradfitz/gomemcache/memcache"
 )
 
 const (
@@ -27,7 +27,7 @@ type MemcacheConnPool struct {
 }
 
 type connectResult struct {
-	conn *memcache.Connection
+	conn *memcache.Client
 	err  error
 }
 
@@ -45,7 +45,7 @@ func NewMemcacheConnPool(server string, maxOpen int) *MemcacheConnPool {
 	return m
 }
 
-func (m *MemcacheConnPool) GetConn() (*memcache.Connection, error) {
+func (m *MemcacheConnPool) GetConn() (*memcache.Client, error) {
 	if m.nrWait > 2*m.maxOpen {
 		return nil, ErrTooBusy
 	}
@@ -63,16 +63,14 @@ func (m *MemcacheConnPool) GetConn() (*memcache.Connection, error) {
 	return r.conn, r.err
 }
 
-func (m *MemcacheConnPool) ReleaseConn(c *memcache.Connection, err error) {
+func (m *MemcacheConnPool) ReleaseConn(c *memcache.Client, err error) {
 	if err != nil {
-		if me, ok := err.(memcache.Error); ok {
-			log.Printf("MemcacheConnPool: dropping bad connection to %s due to error: %s\n",
-				m.server, me.Error())
-			m.DropConn(c)
-			return
-		}
+		log.Printf("MemcacheConnPool: dropping bad connection to %s due to error: %s\n",
+			m.server, err.Error())
+		m.DropConn(c)
+		return
 	}
-	go func(c *memcache.Connection) {
+	go func(c *memcache.Client) {
 		select {
 		case m.idle <- connectResult{conn: c, err: nil}:
 			// Somebody got it
@@ -83,11 +81,13 @@ func (m *MemcacheConnPool) ReleaseConn(c *memcache.Connection, err error) {
 	}(c)
 }
 
-func (m *MemcacheConnPool) DropConn(c *memcache.Connection) {
+func (m *MemcacheConnPool) DropConn(c *memcache.Client) {
 	m.drop <- nil
-	if c != nil {
-		c.Close()
-	}
+
+	// c will be GCed later
+	// https://github.com/bradfitz/gomemcache/issues/51
+	c = nil
+
 }
 
 func (m *MemcacheConnPool) manager() {
@@ -106,7 +106,9 @@ func (m *MemcacheConnPool) manager() {
 }
 
 func (m *MemcacheConnPool) connect() {
-	if c, err := memcache.Connect(m.server, DefaultTimeout); err != nil {
+	c := memcache.New(m.server)
+	c.Timeout = DefaultTimeout
+	if err := c.Ping(); err != nil {
 		m.idle <- connectResult{conn: c, err: err}
 	} else {
 		m.ReleaseConn(c, nil)
