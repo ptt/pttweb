@@ -5,6 +5,8 @@ import (
 	"log"
 	"sync"
 	"time"
+
+	"github.com/bradfitz/gomemcache/memcache"
 )
 
 var errCacheMiss = errors.New("cache miss")
@@ -123,11 +125,14 @@ func (m *CacheManager) getFromCache(key string) ([]byte, error) {
 	defer m.connPool.ReleaseConn(memd, err)
 
 	if err != nil {
+		if err == memcache.ErrCacheMiss {
+			return nil, errCacheMiss
+		}
+
 		return nil, err
-	} else if len(res) != 1 {
-		return nil, errCacheMiss
 	}
-	return res[0].Value, nil
+
+	return res.Value, nil
 }
 
 func (m *CacheManager) storeResultCache(key string, data []byte, expire time.Duration) error {
@@ -137,6 +142,11 @@ func (m *CacheManager) storeResultCache(key string, data []byte, expire time.Dur
 	}
 	defer m.connPool.ReleaseConn(memd, err)
 
-	_, err = memd.Set(key, 0, uint64(expire.Seconds()), data)
+	err = memd.Set(&memcache.Item{
+		Key:        key,
+		Value:      data,
+		Flags:      uint32(0),
+		Expiration: int32(expire.Seconds()),
+	})
 	return err
 }
