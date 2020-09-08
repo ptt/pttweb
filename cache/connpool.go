@@ -87,7 +87,6 @@ func (m *MemcacheConnPool) DropConn(c *memcache.Client) {
 	// c will be GCed later
 	// https://github.com/bradfitz/gomemcache/issues/51
 	c = nil
-
 }
 
 func (m *MemcacheConnPool) manager() {
