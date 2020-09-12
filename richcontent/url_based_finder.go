@@ -37,10 +37,10 @@ type UrlPattern struct {
 
 var defaultUrlPatterns = []*UrlPattern{
 	newUrlPattern(`^https?://(?:www\.youtube\.com/watch\?(?:.+&)*v=|youtu\.be/)([\w\-]+)`, handleYoutube),
-	newUrlPattern(`^https?://i\.imgur\.com/([\w]+)\.(?i:png|jpg|gif)$`, handleImgur), // Note: cuz some users use http
+	newUrlPattern(`^https?://i\.imgur\.com/([\w]+)\.(?i:png|jpeg|jpg|gif)$`, handleImgur), // Note: cuz some users use http
 	newUrlPattern(`^https?://imgur\.com/([,\w]+)(?:\#(\d+))?[^/]*$`, handleImgur),
 	newUrlPattern(`^http://picmoe\.net/d\.php\?id=(\d+)`, handlePicmoe),
-	newUrlPattern(`\.(?i:png|jpg|gif)$`, handleGenericImage),
+	newUrlPattern(`\.(?i:png|jpeg|jpg|gif)$`, handleGenericImage),
 }
 
 func newUrlPattern(pattern string, handler UrlPatternHandler) *UrlPattern {
