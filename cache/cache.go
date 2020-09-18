@@ -7,9 +7,17 @@ import (
 	"time"
 
 	"github.com/bradfitz/gomemcache/memcache"
+	"github.com/ptt/pttweb/gate"
 )
 
-var errCacheMiss = errors.New("cache miss")
+const (
+	// Request and connect timeout
+	DefaultTimeout = time.Second * 30
+)
+
+var (
+	ErrTooBusy = errors.New("conn pool too busy")
+)
 
 type Key interface {
 	String() string
@@ -34,18 +42,24 @@ type result struct {
 type resultChan chan result
 
 type CacheManager struct {
-	server   string
-	connPool *MemcacheConnPool
+	server string
+	mc     *memcache.Client
+	gate   *gate.Gate
 
 	mu      sync.Mutex
 	pending map[string][]resultChan
 }
 
 func NewCacheManager(server string, maxOpen int) *CacheManager {
+	mc := memcache.New(server)
+	mc.Timeout = DefaultTimeout
+	mc.MaxIdleConns = maxOpen
+
 	return &CacheManager{
-		server:   server,
-		connPool: NewMemcacheConnPool(server, maxOpen),
-		pending:  make(map[string][]resultChan),
+		server:  server,
+		mc:      mc,
+		gate:    gate.New(maxOpen, maxOpen),
+		pending: make(map[string][]resultChan),
 	}
 }
 
@@ -54,7 +68,7 @@ func (m *CacheManager) Get(key Key, tp NewableFromBytes, expire time.Duration, g
 
 	// Check if can be served from cache
 	if data, err := m.getFromCache(keyString); err != nil {
-		if err != errCacheMiss {
+		if err != memcache.ErrCacheMiss {
 			log.Printf("getFromCache: key: %q, err: %v", keyString, err)
 		}
 	} else if data != nil {
@@ -116,37 +130,32 @@ func (m *CacheManager) removePendings(key string) []resultChan {
 }
 
 func (m *CacheManager) getFromCache(key string) ([]byte, error) {
-	memd, err := m.connPool.GetConn()
+	rsv, ok := m.gate.Reserve()
+	if !ok {
+		return nil, ErrTooBusy
+	}
+	rsv.Wait()
+	defer rsv.Release()
+
+	res, err := m.mc.Get(key)
 	if err != nil {
 		return nil, err
 	}
-
-	res, err := memd.Get(key)
-	defer m.connPool.ReleaseConn(memd, err)
-
-	if err != nil {
-		if err == memcache.ErrCacheMiss {
-			return nil, errCacheMiss
-		}
-
-		return nil, err
-	}
-
 	return res.Value, nil
 }
 
 func (m *CacheManager) storeResultCache(key string, data []byte, expire time.Duration) error {
-	memd, err := m.connPool.GetConn()
-	if err != nil {
-		return err
+	rsv, ok := m.gate.Reserve()
+	if !ok {
+		return ErrTooBusy
 	}
-	defer m.connPool.ReleaseConn(memd, err)
+	rsv.Wait()
+	defer rsv.Release()
 
-	err = memd.Set(&memcache.Item{
+	return m.mc.Set(&memcache.Item{
 		Key:        key,
 		Value:      data,
 		Flags:      uint32(0),
 		Expiration: int32(expire.Seconds()),
 	})
-	return err
 }
