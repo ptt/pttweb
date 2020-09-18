@@ -594,6 +594,7 @@ func handleBoardAtomFeed(c *Context, w http.ResponseWriter) error {
 
 	timeout := BbsIndexLastPageCacheTimeout
 
+	c.SetSkipOver18()
 	brd, err := getBoardByName(c, brdname)
 	if err != nil {
 		return err
@@ -809,15 +810,13 @@ func hasPermViewBoard(c *Context, brd *pttbbs.Board) error {
 		return NewNotFoundError(fmt.Errorf("no permission: %s", brd.BrdName))
 	}
 	if brd.Over18 {
-		if config.EnableOver18Cookie {
-			if c.IsCrawler() || c.IsOver18CheckSkipped() {
-				// Crawlers or machine-to-machine requests.
-			} else if !c.IsOver18() {
-				return shouldAskOver18Error(c)
-			}
-		} else {
+		if !config.EnableOver18Cookie {
 			return NewNotFoundError(ErrOver18CookieNotEnabled)
 		}
+		if !c.IsCrawler() && !c.IsOver18() {
+			return shouldAskOver18Error(c)
+		}
+		// Ok
 	}
 	return nil
 }
