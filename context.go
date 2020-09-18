@@ -18,6 +18,10 @@ type Context struct {
 	isCrawler            bool
 }
 
+func (c *Context) Request() *http.Request {
+	return c.R
+}
+
 func (c *Context) MergeFromRequest(r *http.Request) error {
 	c.R = r
 	_, c.isOver18CheckSkipped = routesSkipOver18[mux.CurrentRoute(r).GetName()]

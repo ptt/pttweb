@@ -1,6 +1,10 @@
 package main
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/ptt/pttweb/captcha"
+)
 
 type PttwebConfig struct {
 	Bind              []string
@@ -30,15 +34,7 @@ type PttwebConfig struct {
 	RecaptchaSecret     string
 	CaptchaInsertSecret string
 	CaptchaExpireSecs   int
-	CaptchaRedisConfig  *CaptchaRedisConfig
-}
-
-// See https://godoc.org/github.com/go-redis/redis#Options
-type CaptchaRedisConfig struct {
-	Network  string
-	Addr     string
-	Password string
-	DB       int
+	CaptchaRedisConfig  *captcha.RedisConfig
 }
 
 const (
@@ -62,6 +58,16 @@ func (c *PttwebConfig) CheckAndFillDefaults() error {
 	return nil
 }
 
-func (c *PttwebConfig) IsCaptchaConfigured() bool {
-	return c.RecaptchaSiteKey != "" && c.RecaptchaSecret != "" && c.CaptchaRedisConfig != nil
+func (c *PttwebConfig) captchaConfig() *captcha.Config {
+	enabled := c.RecaptchaSiteKey != "" && c.RecaptchaSecret != "" && c.CaptchaRedisConfig != nil
+	return &captcha.Config{
+		Enabled:      enabled,
+		InsertSecret: c.CaptchaInsertSecret,
+		ExpireSecs:   c.CaptchaExpireSecs,
+		Recaptcha: captcha.RecaptchaConfig{
+			SiteKey: c.RecaptchaSiteKey,
+			Secret:  c.RecaptchaSecret,
+		},
+		Redis: *c.CaptchaRedisConfig,
+	}
 }

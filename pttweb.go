@@ -27,6 +27,7 @@ import (
 
 	"github.com/ptt/pttweb/atomfeed"
 	"github.com/ptt/pttweb/cache"
+	"github.com/ptt/pttweb/captcha"
 	"github.com/ptt/pttweb/page"
 	manpb "github.com/ptt/pttweb/proto/man"
 	"github.com/ptt/pttweb/pttbbs"
@@ -122,13 +123,6 @@ func main() {
 			}
 			return config.SitePrefix + u.String(), nil
 		},
-	}
-
-	// Init captcha redis server.
-	if config.IsCaptchaConfigured() {
-		if err := initCaptchaRedisServer(config.CaptchaRedisConfig); err != nil {
-			log.Fatal("initCaptchaRedisServer:", err)
-		}
 	}
 
 	// Load templates
@@ -237,14 +231,10 @@ func createRouter() *mux.Router {
 		Name("manentry")
 
 	// Captcha
-	if config.IsCaptchaConfigured() {
-		r.Path(ReplaceVars(`/captcha`)).
-			Handler(ErrorWrapper(handleCaptcha)).
-			Name("captcha")
-
-		r.Path(ReplaceVars(`/captcha/insert`)).
-			Handler(ErrorWrapper(handleCaptchaInsert)).
-			Name("captcha_insert")
+	if cfg := config.captchaConfig(); cfg.Enabled {
+		if err := captcha.Install(cfg, r); err != nil {
+			log.Fatal("captcha.Install:", err)
+		}
 	}
 
 	return r

@@ -1,4 +1,4 @@
-package main
+package captcha
 
 import (
 	"encoding/json"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis"
+	"github.com/gorilla/mux"
 	"github.com/ptt/pttweb/page"
 	"github.com/rvelhote/go-recaptcha"
 )
@@ -32,50 +33,70 @@ var (
 	}
 )
 
-var captchaRedis *redis.Client
-
 type CaptchaErr struct {
 	error
 	SetCaptchaPage func(p *page.Captcha)
 }
 
-func initCaptchaRedisServer(c *CaptchaRedisConfig) error {
-	captchaRedis = redis.NewClient(&redis.Options{
-		Network:  c.Network,
-		Addr:     c.Addr,
-		Password: c.Password,
-		DB:       c.DB,
+type Handler struct {
+	config      *Config
+	router      *mux.Router
+	redisClient *redis.Client
+}
+
+func Install(cfg *Config, r *mux.Router) error {
+	redisClient := redis.NewClient(&redis.Options{
+		Network:  cfg.Redis.Network,
+		Addr:     cfg.Redis.Addr,
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
 	})
+	h := &Handler{
+		config:      cfg,
+		router:      r,
+		redisClient: redisClient,
+	}
+	h.installRoutes(r)
 	return nil
 }
 
-func handleCaptcha(c *Context, w http.ResponseWriter) error {
-	p, err := handleCaptchaInternal(c, w)
+func (h *Handler) installRoutes(r *mux.Router) {
+	r.Path(`/captcha`).
+		Handler(page.ErrorWrapper(h.handleCaptcha)).
+		Name("captcha")
+
+	r.Path(`/captcha/insert`).
+		Handler(page.ErrorWrapper(h.handleCaptchaInsert)).
+		Name("captcha_insert")
+}
+
+func (h *Handler) handleCaptcha(ctx page.Context, w http.ResponseWriter) error {
+	p, err := h.handleCaptchaInternal(ctx, w)
 	if err != nil {
 		return err
 	}
 	return page.ExecutePage(w, p)
 }
 
-func handleCaptchaInternal(c *Context, w http.ResponseWriter) (*page.Captcha, error) {
+func (h *Handler) handleCaptchaInternal(ctx page.Context, w http.ResponseWriter) (*page.Captcha, error) {
 	p := &page.Captcha{
-		Handle:           c.R.FormValue(CaptchaHandle),
-		RecaptchaSiteKey: config.RecaptchaSiteKey,
+		Handle:           ctx.Request().FormValue(CaptchaHandle),
+		RecaptchaSiteKey: h.config.Recaptcha.SiteKey,
 	}
-	if u, err := router.Get("captcha").URLPath(); err != nil {
+	if u, err := h.router.Get("captcha").URLPath(); err != nil {
 		return nil, err
 	} else {
 		q := make(url.Values)
-		q.Set(CaptchaHandle, c.R.FormValue(CaptchaHandle))
+		q.Set(CaptchaHandle, ctx.Request().FormValue(CaptchaHandle))
 		p.PostAction = u.String() + "?" + q.Encode()
 	}
 	// Check if the handle is valid.
-	if _, err := fetchVerificationKey(p.Handle); err != nil {
+	if _, err := h.fetchVerificationKey(p.Handle); err != nil {
 		return translateCaptchaErr(p, err)
 	}
-	if response := c.R.PostFormValue(GRecaptchaResponse); response != "" {
+	if response := ctx.Request().PostFormValue(GRecaptchaResponse); response != "" {
 		r := recaptcha.Recaptcha{
-			PrivateKey: config.RecaptchaSecret,
+			PrivateKey: h.config.Recaptcha.Secret,
 			URL:        RecaptchaURL,
 		}
 		verifyResp, errs := r.Verify(response, "")
@@ -84,7 +105,7 @@ func handleCaptchaInternal(c *Context, w http.ResponseWriter) (*page.Captcha, er
 			return translateCaptchaErr(p, ErrCaptchaVerifyFailed)
 		} else if verifyResp.Success {
 			var err error
-			p.VerificationKey, err = fetchVerificationKey(p.Handle)
+			p.VerificationKey, err = h.fetchVerificationKey(p.Handle)
 			if err != nil {
 				return translateCaptchaErr(p, err)
 			}
@@ -104,11 +125,11 @@ func translateCaptchaErr(p *page.Captcha, err error) (*page.Captcha, error) {
 	return p, err
 }
 
-func fetchVerificationKey(handle string) (string, error) {
+func (h *Handler) fetchVerificationKey(handle string) (string, error) {
 	if len(handle) > MaxCaptchaHandleLength {
 		return "", ErrCaptchaHandleNotFound
 	}
-	data, err := captchaRedis.Get(handle).Result()
+	data, err := h.redisClient.Get(handle).Result()
 	if err == redis.Nil {
 		return "", ErrCaptchaHandleNotFound
 	} else if err != nil {
@@ -121,15 +142,16 @@ func fetchVerificationKey(handle string) (string, error) {
 	return e.Verify, nil
 }
 
-func handleCaptchaInsert(c *Context, w http.ResponseWriter) error {
-	secret := c.R.FormValue("secret")
-	handle := c.R.FormValue("handle")
-	verify := c.R.FormValue("verify")
+func (h *Handler) handleCaptchaInsert(ctx page.Context, w http.ResponseWriter) error {
+	req := ctx.Request()
+	secret := req.FormValue("secret")
+	handle := req.FormValue("handle")
+	verify := req.FormValue("verify")
 	if secret == "" || handle == "" || verify == "" || len(handle) > MaxCaptchaHandleLength {
 		w.WriteHeader(http.StatusBadRequest)
 		return nil
 	}
-	if secret != config.CaptchaInsertSecret {
+	if secret != h.config.InsertSecret {
 		w.WriteHeader(http.StatusForbidden)
 		return nil
 	}
@@ -140,8 +162,8 @@ func handleCaptchaInsert(c *Context, w http.ResponseWriter) error {
 	if err != nil {
 		return err
 	}
-	expire := time.Duration(config.CaptchaExpireSecs) * time.Second
-	r, err := captchaRedis.SetNX(handle, data, expire).Result()
+	expire := time.Duration(h.config.ExpireSecs) * time.Second
+	r, err := h.redisClient.SetNX(handle, data, expire).Result()
 	if err != nil {
 		return err
 	}
