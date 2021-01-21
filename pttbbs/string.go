@@ -24,13 +24,16 @@ var (
 const (
 	ArticleAuthor = "作者"
 	ArticleTitle  = "標題"
+
+	AllPostBrdName = "ALLPOST"
 )
 
 var (
-	validBrdNameRegexp  = regexp.MustCompile(`^[0-9a-zA-Z][0-9a-zA-Z_\.\-]+$`)
-	validFileNameRegexp = regexp.MustCompile(`^[MG]\.\d+\.A(\.[0-9A-F]+)?$`)
-	validUserIDRegexp   = regexp.MustCompile(`^[a-zA-Z][0-9a-zA-Z]{1,11}$`)
-	fileNameTimeRegexp  = regexp.MustCompile(`^[MG]\.(\d+)\.A(\.[0-9A-F]+)?$`)
+	validBrdNameRegexp        = regexp.MustCompile(`^[0-9a-zA-Z][0-9a-zA-Z_\.\-]+$`)
+	validFileNameRegexp       = regexp.MustCompile(`^[MG]\.\d+\.A(\.[0-9A-F]+)?$`)
+	validUserIDRegexp         = regexp.MustCompile(`^[a-zA-Z][0-9a-zA-Z]{1,11}$`)
+	fileNameTimeRegexp        = regexp.MustCompile(`^[MG]\.(\d+)\.A(\.[0-9A-F]+)?$`)
+	allPostBrdNameTitleRegexp = regexp.MustCompile(`\(([0-9a-zA-Z][0-9a-zA-Z_\.\-]+)\)$`)
 )
 
 func IsValidBrdName(brdname string) bool {
@@ -108,4 +111,14 @@ func countPrefixSpaces(s string) int {
 		}
 	}
 	return 0
+}
+
+// BrdNameFromAllPostTitle returns the board name parsed from the post title in
+// ALLPOST board.
+func BrdNameFromAllPostTitle(title string) (string, bool) {
+	m := allPostBrdNameTitleRegexp.FindStringSubmatch(title)
+	if len(m) == 0 {
+		return "", false
+	}
+	return m[1], true
 }

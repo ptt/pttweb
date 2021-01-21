@@ -23,6 +23,10 @@ type PttwebConfig struct {
 
 	EnableOver18Cookie bool
 
+	// EnableLinkOriginalInAllPost indicates whether to parse the board name in
+	// ALLPOST board and link to original posts.
+	EnableLinkOriginalInAllPost bool
+
 	FeedPrefix            string
 	AtomFeedTitleTemplate string
 

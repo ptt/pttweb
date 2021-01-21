@@ -257,7 +257,12 @@ func templateFuncMap() template.FuncMap {
 		"valid_article": func(a pttbbs.Article) bool {
 			return pttbbs.IsValidArticleFileName(a.FileName)
 		},
-		"route_bbsarticle": func(brdname, filename string) (*url.URL, error) {
+		"route_bbsarticle": func(brdname, filename, title string) (*url.URL, error) {
+			if config.EnableLinkOriginalInAllPost && brdname == pttbbs.AllPostBrdName {
+				if origBrdName, ok := pttbbs.BrdNameFromAllPostTitle(title); ok {
+					brdname = origBrdName
+				}
+			}
 			return router.Get("bbsarticle").URLPath("brdname", brdname, "filename", filename)
 		},
 		"route_askover18": func() (*url.URL, error) {
