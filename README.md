@@ -16,6 +16,17 @@ Features
  - Templating support
  - Ask user if he/she is over age 18 when entering some areas.
 
+Build
+-----
+
+Install [grpc](https://grpc.io/docs/languages/go/quickstart/)
+
+    $ cd proto
+    $ make
+    $ ../
+    $ go build
+
+
 Configuration
 -------------
 

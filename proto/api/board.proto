@@ -5,6 +5,8 @@ syntax = "proto3";
 //
 // The MIT License.
 
+option go_package = "./;api";
+
 package pttbbs.api;
 
 service BoardService {
