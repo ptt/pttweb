@@ -78,6 +78,8 @@ func loadConfig() error {
 }
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	flag.Parse()
 
 	if err := loadConfig(); err != nil {
