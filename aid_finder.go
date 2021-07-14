@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"log"
 	"regexp"
 
 	"github.com/ptt/pttweb/pttbbs"
@@ -61,7 +60,6 @@ type boardname interface {
 func handleAidText(ctx context.Context, input []byte, m richcontent.MatchIndices) (string, error) {
 	bn, ok := ctx.Value(CtxKeyBoardname).(boardname)
 	if !ok {
-		log.Println("no ArticleRequest present")
 		return "", nil // Silently fail
 	}
 

@@ -47,7 +47,7 @@ func generateBbsIndex(key cache.Key) (cache.Cacheable, error) {
 		page = paging.LastPageNo()
 		paging.SetPageNo(page)
 	} else if err := paging.SetPageNo(page); err != nil {
-		return nil, err
+		return nil, NewNotFoundError(err)
 	}
 
 	// Fetch article list
