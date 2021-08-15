@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/base64"
+	"hash/fnv"
 	"net/url"
 	"strconv"
 	"time"
@@ -54,8 +55,9 @@ func (c *extCache) Generate(urlStr string) (string, error) {
 		return "", err
 	}
 
-	expireStr := strconv.FormatInt(time.Now().Unix()+int64(c.cfg.Expires), 10)
 	uri := "/" + u.Scheme + "/" + u.Host + u.Path
+	expire := snapExpire(uri, time.Now().Unix(), int64(c.cfg.Expires))
+	expireStr := strconv.FormatInt(expire, 10)
 	h := md5.Sum([]byte(expireStr + c.cfg.HashPrefix + uri + c.cfg.Secret))
 	sig := base64.RawURLEncoding.EncodeToString(h[:])
 
@@ -64,4 +66,11 @@ func (c *extCache) Generate(urlStr string) (string, error) {
 	q.Set("s", sig)
 
 	return c.cfg.Prefix + uri + "?" + q.Encode(), nil
+}
+
+func snapExpire(key string, now, min int64) int64 {
+	h := fnv.New32()
+	_, _ = h.Write([]byte(key))
+	expire := (now+min+0xFFFF)&^0xFFFF + int64(h.Sum32()&0xFFFF)
+	return expire
 }
