@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/ptt/pttweb/captcha"
+	"github.com/ptt/pttweb/extcache"
 )
 
 type PttwebConfig struct {
@@ -39,6 +40,8 @@ type PttwebConfig struct {
 	CaptchaInsertSecret string
 	CaptchaExpireSecs   int
 	CaptchaRedisConfig  *captcha.RedisConfig
+
+	ExtCacheConfig extcache.Config
 }
 
 const (

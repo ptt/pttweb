@@ -28,6 +28,7 @@ import (
 	"github.com/ptt/pttweb/atomfeed"
 	"github.com/ptt/pttweb/cache"
 	"github.com/ptt/pttweb/captcha"
+	"github.com/ptt/pttweb/extcache"
 	"github.com/ptt/pttweb/page"
 	manpb "github.com/ptt/pttweb/proto/man"
 	"github.com/ptt/pttweb/pttbbs"
@@ -54,6 +55,7 @@ var pttSearch pttbbs.Pttbbs
 var mand manpb.ManServiceClient
 var router *mux.Router
 var cacheMgr *cache.CacheManager
+var extCache extcache.ExtCache
 var atomConverter *atomfeed.Converter
 
 var configPath string
@@ -111,6 +113,9 @@ func main() {
 
 	// Init cache manager
 	cacheMgr = cache.NewCacheManager(config.MemcachedAddress, config.MemcachedMaxConn)
+
+	// Init extcache module if configured
+	extCache = extcache.New(config.ExtCacheConfig)
 
 	// Init atom converter.
 	atomConverter = &atomfeed.Converter{

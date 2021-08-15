@@ -12,6 +12,7 @@ import (
 	"github.com/ptt/pttweb/article"
 	"github.com/ptt/pttweb/atomfeed"
 	"github.com/ptt/pttweb/cache"
+	"github.com/ptt/pttweb/extcache"
 	"github.com/ptt/pttweb/pttbbs"
 
 	"golang.org/x/net/context"
@@ -248,7 +249,9 @@ func (r *ArticleRequest) Boardname() string {
 
 func generateArticle(key cache.Key) (cache.Cacheable, error) {
 	r := key.(*ArticleRequest)
-	ctx := context.WithValue(context.TODO(), CtxKeyBoardname, r)
+	ctx := context.TODO()
+	ctx = context.WithValue(ctx, CtxKeyBoardname, r)
+	ctx = extcache.WithExtCache(ctx, extCache)
 
 	p, err := r.Select(pttbbs.SelectHead, 0, HeadSize)
 	if err != nil {
@@ -327,7 +330,9 @@ func (r *ArticlePartRequest) Boardname() string {
 
 func generateArticlePart(key cache.Key) (cache.Cacheable, error) {
 	r := key.(*ArticlePartRequest)
-	ctx := context.WithValue(context.TODO(), CtxKeyBoardname, r)
+	ctx := context.TODO()
+	ctx = context.WithValue(ctx, CtxKeyBoardname, r)
+	ctx = extcache.WithExtCache(ctx, extCache)
 
 	p, err := ptt.GetArticleSelect(r.Brd.Ref(), pttbbs.SelectHead, r.Filename, r.CacheKey, r.Offset, -1)
 	if err == pttbbs.ErrNotFound {

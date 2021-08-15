@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ptt/pttweb/extcache"
 	"golang.org/x/net/context"
 )
 
@@ -37,8 +38,8 @@ type UrlPattern struct {
 
 var defaultUrlPatterns = []*UrlPattern{
 	newUrlPattern(`^https?://(?:www\.youtube\.com/watch\?(?:.+&)*v=|youtu\.be/)([\w\-]+)`, handleYoutube),
-	newUrlPattern(`^https?://i\.imgur\.com/([\w]+)\.(?i:png|jpeg|jpg|gif)$`, handleImgur), // Note: cuz some users use http
-	newUrlPattern(`^https?://imgur\.com/([,\w]+)(?:\#(\d+))?[^/]*$`, handleImgur),
+	newUrlPattern(`^https?://i\.imgur\.com/([\w]+)\.((?i)png|jpeg|jpg|gif)$`, handleImgurSingle), // Note: cuz some users use http
+	newUrlPattern(`^https?://imgur\.com/([,\w]+)(?:\#(\d+))?[^/]*$`, handleImgurMulti),
 	newUrlPattern(`^http://picmoe\.net/d\.php\?id=(\d+)`, handlePicmoe),
 	newUrlPattern(`\.(?i:png|jpeg|jpg|gif)$`, handleGenericImage),
 }
@@ -69,7 +70,21 @@ func handleSameSchemeImage(ctx context.Context, urlBytes []byte, match MatchIndi
 	return []Component{MakeComponent(imageHtmlTag(string(match.ByteSliceOf(urlBytes, 1))))}, nil
 }
 
-func handleImgur(ctx context.Context, urlBytes []byte, match MatchIndices) ([]Component, error) {
+func handleImgurSingle(ctx context.Context, urlBytes []byte, match MatchIndices) ([]Component, error) {
+	ext, _ := extcache.FromContext(ctx)
+	if ext == nil {
+		return handleImgurMulti(ctx, urlBytes, match)
+	}
+	id := string(match.ByteSliceOf(urlBytes, 1)) + "." + string(match.ByteSliceOf(urlBytes, 2))
+	escapedId := url.PathEscape(id)
+	src, err := ext.Generate("https://i.imgur.com/" + escapedId)
+	if err != nil {
+		return nil, nil // Silently ignore
+	}
+	return []Component{MakeComponent(imageHtmlTag(src))}, nil
+}
+
+func handleImgurMulti(ctx context.Context, urlBytes []byte, match MatchIndices) ([]Component, error) {
 	var comps []Component
 	for _, id := range strings.Split(string(match.ByteSliceOf(urlBytes, 1)), ",") {
 		escapedId := url.PathEscape(id)
