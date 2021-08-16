@@ -71,13 +71,20 @@ func handleSameSchemeImage(ctx context.Context, urlBytes []byte, match MatchIndi
 }
 
 func handleImgurSingle(ctx context.Context, urlBytes []byte, match MatchIndices) ([]Component, error) {
-	ext, _ := extcache.FromContext(ctx)
-	if ext == nil {
+	cache, _ := extcache.FromContext(ctx)
+	if cache == nil {
 		return handleImgurMulti(ctx, urlBytes, match)
 	}
-	id := string(match.ByteSliceOf(urlBytes, 1)) + "." + string(match.ByteSliceOf(urlBytes, 2))
-	escapedId := url.PathEscape(id)
-	src, err := ext.Generate("https://i.imgur.com/" + escapedId)
+	id := string(match.ByteSliceOf(urlBytes, 1))
+	ext := string(match.ByteSliceOf(urlBytes, 2))
+	// Use at biggest large image.
+	if n := len(id); n > 0 && id[n-1] == 'h' {
+		id = id[:n-1] + "l"
+	} else {
+		id += "l"
+	}
+	escapedId := url.PathEscape(id + "." + ext)
+	src, err := cache.Generate("https://i.imgur.com/" + escapedId)
 	if err != nil {
 		return nil, nil // Silently ignore
 	}
