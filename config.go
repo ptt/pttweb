@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/ptt/pttweb/captcha"
+	"github.com/ptt/pttweb/experiment"
 	"github.com/ptt/pttweb/extcache"
 )
 
@@ -42,6 +43,12 @@ type PttwebConfig struct {
 	CaptchaRedisConfig  *captcha.RedisConfig
 
 	ExtCacheConfig extcache.Config
+
+	Experiments Experiments
+}
+
+type Experiments struct {
+	ExtCache experiment.OptIn
 }
 
 const (

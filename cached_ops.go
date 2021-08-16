@@ -251,7 +251,9 @@ func generateArticle(key cache.Key) (cache.Cacheable, error) {
 	r := key.(*ArticleRequest)
 	ctx := context.TODO()
 	ctx = context.WithValue(ctx, CtxKeyBoardname, r)
-	ctx = extcache.WithExtCache(ctx, extCache)
+	if config.Experiments.ExtCache.Enabled(fastStrHash64(r.Filename)) {
+		ctx = extcache.WithExtCache(ctx, extCache)
+	}
 
 	p, err := r.Select(pttbbs.SelectHead, 0, HeadSize)
 	if err != nil {
@@ -332,7 +334,9 @@ func generateArticlePart(key cache.Key) (cache.Cacheable, error) {
 	r := key.(*ArticlePartRequest)
 	ctx := context.TODO()
 	ctx = context.WithValue(ctx, CtxKeyBoardname, r)
-	ctx = extcache.WithExtCache(ctx, extCache)
+	if config.Experiments.ExtCache.Enabled(fastStrHash64(r.Filename)) {
+		ctx = extcache.WithExtCache(ctx, extCache)
+	}
 
 	p, err := ptt.GetArticleSelect(r.Brd.Ref(), pttbbs.SelectHead, r.Filename, r.CacheKey, r.Offset, -1)
 	if err == pttbbs.ErrNotFound {
