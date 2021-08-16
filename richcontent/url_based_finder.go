@@ -52,7 +52,7 @@ func newUrlPattern(pattern string, handler UrlPatternHandler) *UrlPattern {
 }
 
 func imageHtmlTag(urlString string) string {
-	return fmt.Sprintf(`<img src="%s" alt="" />`, html.EscapeString(urlString))
+	return fmt.Sprintf(`<img src="%s" alt="" loading="lazy" />`, html.EscapeString(urlString))
 }
 
 // Handlers
