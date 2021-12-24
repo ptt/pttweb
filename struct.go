@@ -31,13 +31,6 @@ func gobDecode(in []byte, out interface{}) error {
 	return gob.NewDecoder(buf).Decode(out)
 }
 
-func gobDecodeCacheable(data []byte, obj cache.Cacheable) (cache.Cacheable, error) {
-	if err := gobDecode(data, obj); err != nil {
-		return nil, err
-	}
-	return obj, nil
-}
-
 func makeSerializer[V any]() func(*V) ([]byte, error) {
 	return func(val *V) ([]byte, error) {
 		return gobEncodeBytes(val)
@@ -72,14 +65,6 @@ type Article struct {
 	IsValid bool
 }
 
-func (_ *Article) NewFromBytes(data []byte) (cache.Cacheable, error) {
-	return gobDecodeCacheable(data, new(Article))
-}
-
-func (a *Article) EncodeToBytes() ([]byte, error) {
-	return gobEncodeBytes(a)
-}
-
 type ArticlePart struct {
 	ContentHtml string
 	CacheKey    string
@@ -87,35 +72,11 @@ type ArticlePart struct {
 	IsValid     bool
 }
 
-func (_ *ArticlePart) NewFromBytes(data []byte) (cache.Cacheable, error) {
-	return gobDecodeCacheable(data, new(ArticlePart))
-}
-
-func (a *ArticlePart) EncodeToBytes() ([]byte, error) {
-	return gobEncodeBytes(a)
-}
-
 type BbsIndex page.BbsIndex
-
-func (_ *BbsIndex) NewFromBytes(data []byte) (cache.Cacheable, error) {
-	return gobDecodeCacheable(data, new(BbsIndex))
-}
-
-func (bi *BbsIndex) EncodeToBytes() ([]byte, error) {
-	return gobEncodeBytes(bi)
-}
 
 type BoardAtomFeed struct {
 	Feed    *atom.Feed
 	IsValid bool
-}
-
-func (_ *BoardAtomFeed) NewFromBytes(data []byte) (cache.Cacheable, error) {
-	return gobDecodeCacheable(data, new(BoardAtomFeed))
-}
-
-func (bi *BoardAtomFeed) EncodeToBytes() ([]byte, error) {
-	return gobEncodeBytes(bi)
 }
 
 func init() {
@@ -123,14 +84,4 @@ func init() {
 	gob.Register(ArticlePart{})
 	gob.Register(BbsIndex{})
 	gob.Register(BoardAtomFeed{})
-
-	// Make sure they are |Cacheable|
-	checkCacheable(new(Article))
-	checkCacheable(new(ArticlePart))
-	checkCacheable(new(BbsIndex))
-	checkCacheable(new(BoardAtomFeed))
-}
-
-func checkCacheable(c cache.Cacheable) {
-	// Empty
 }

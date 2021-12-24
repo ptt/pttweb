@@ -62,9 +62,13 @@ var atomConverter *atomfeed.Converter
 var configPath string
 var config PttwebConfig
 
-func init() {
-	flag.StringVar(&configPath, "conf", "config.json", "config file")
-}
+var (
+	bbsIndexCache      *cache.TypedManager[*cache.CacheManager, *BbsIndexRequest, *BbsIndex]
+	bbsSearchCache     *cache.TypedManager[*cache.CacheManager, *BbsSearchRequest, *BbsIndex]
+	articleCache       *cache.TypedManager[*cache.CacheManager, *ArticleRequest, *Article]
+	articlePartCache   *cache.TypedManager[*cache.CacheManager, *ArticlePartRequest, *ArticlePart]
+	boardAtomFeedCache *cache.TypedManager[*cache.CacheManager, *BoardAtomFeedRequest, *BoardAtomFeed]
+)
 
 func loadConfig() error {
 	f, err := os.Open(configPath)
@@ -324,6 +328,18 @@ func templateFuncMap() template.FuncMap {
 	}
 }
 
+func initTypedCaches() {
+	bbsIndexCache = makeTypedCache(cacheMgr, generateBbsIndex)
+	bbsSearchCache = makeTypedCache(cacheMgr, generateBbsSearch)
+	articleCache = makeTypedCache(cacheMgr, generateArticle)
+	articlePartCache = makeTypedCache(cacheMgr, generateArticlePart)
+	boardAtomFeedCache = makeTypedCache(cacheMgr, generateBoardAtomFeed)
+}
+
+func init() {
+	flag.StringVar(&configPath, "conf", "config.json", "config file")
+}
+
 func setCommonResponseHeaders(w http.ResponseWriter) {
 	h := w.Header()
 	h.Set("Server", "Cryophoenix")
@@ -451,22 +467,6 @@ func handleBbsIndexRedirect(c *Context, w http.ResponseWriter) error {
 	}
 	w.WriteHeader(http.StatusFound)
 	return nil
-}
-
-var (
-	bbsIndexCache      *cache.TypedManager[*cache.CacheManager, *BbsIndexRequest, *BbsIndex]
-	bbsSearchCache     *cache.TypedManager[*cache.CacheManager, *BbsSearchRequest, *BbsIndex]
-	articleCache       *cache.TypedManager[*cache.CacheManager, *ArticleRequest, *Article]
-	articlePartCache   *cache.TypedManager[*cache.CacheManager, *ArticlePartRequest, *ArticlePart]
-	boardAtomFeedCache *cache.TypedManager[*cache.CacheManager, *BoardAtomFeedRequest, *BoardAtomFeed]
-)
-
-func initTypedCaches() {
-	bbsIndexCache = makeTypedCache(cacheMgr, generateBbsIndex)
-	bbsSearchCache = makeTypedCache(cacheMgr, generateBbsSearch)
-	articleCache = makeTypedCache(cacheMgr, generateArticle)
-	articlePartCache = makeTypedCache(cacheMgr, generateArticlePart)
-	boardAtomFeedCache = makeTypedCache(cacheMgr, generateBoardAtomFeed)
 }
 
 func handleBbs(c *Context, w http.ResponseWriter) error {

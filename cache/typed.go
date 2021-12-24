@@ -12,6 +12,10 @@ type Cache interface {
 	Store(key string, data []byte, expire time.Duration) error
 }
 
+type Key interface {
+	String() string
+}
+
 type Serializer[V any] func(value V) ([]byte, error)
 
 type Deserializer[V any] func(data []byte) (V, error)
@@ -31,7 +35,7 @@ type TypedManager[C Cache, K Key, V any] struct {
 	deserializer Deserializer[V]
 }
 
-func newTypedManager[C Cache, K Key, V any](c Cache, gen Generator[K, V], ser Serializer[V], des Deserializer[V]) *TypedManager[C, K, V] {
+func NewTyped[C Cache, K Key, V any](c C, gen Generator[K, V], ser Serializer[V], des Deserializer[V]) *TypedManager[C, K, V] {
 	return &TypedManager[C, K, V]{
 		c:            c,
 		sf:           newSingleFlight[*res[V]](),
