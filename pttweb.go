@@ -114,6 +114,7 @@ func main() {
 
 	// Init cache manager
 	cacheMgr = cache.NewCacheManager(config.MemcachedAddress, config.MemcachedMaxConn)
+	initTypedCaches()
 
 	// Init extcache module if configured
 	extCache = extcache.New(config.ExtCacheConfig)
@@ -452,18 +453,19 @@ func handleBbsIndexRedirect(c *Context, w http.ResponseWriter) error {
 	return nil
 }
 
+var bbsIndexCache *cache.TypedManager[*cache.CacheManager, *BbsIndexRequest, *BbsIndex]
+
+func initTypedCaches() {
+	bbsIndexCache = makeTypedCache(cacheMgr, generateBbsIndex)
+}
+
 func handleBbs(c *Context, w http.ResponseWriter) error {
 	vars := mux.Vars(c.R)
 	brdname := vars["brdname"]
 
-	// Note: TODO move timeout into the generating function.
-	// We don't know if it is the last page without entry count.
 	pageNo := 0
-	timeout := BbsIndexLastPageCacheTimeout
-
 	if pg, err := strconv.Atoi(vars["page"]); err == nil {
 		pageNo = pg
-		timeout = BbsIndexCacheTimeout
 	}
 
 	brd, err := getBoardByName(c, brdname)
@@ -471,14 +473,13 @@ func handleBbs(c *Context, w http.ResponseWriter) error {
 		return err
 	}
 
-	obj, err := cacheMgr.Get(&BbsIndexRequest{
+	bbsindex, err := bbsIndexCache.Get(&BbsIndexRequest{
 		Brd:  *brd,
 		Page: pageNo,
-	}, ZeroBbsIndex, timeout, generateBbsIndex)
+	})
 	if err != nil {
 		return err
 	}
-	bbsindex := obj.(*BbsIndex)
 
 	if !bbsindex.IsValid {
 		return NewNotFoundError(fmt.Errorf("not a valid cache.BbsIndex: %v/%v", brd.BrdName, pageNo))

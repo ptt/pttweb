@@ -63,6 +63,10 @@ func NewCacheManager(server string, maxOpen int) *CacheManager {
 	}
 }
 
+func NewTyped[K Key, V any](m *CacheManager, gen Generator[K, V], ser Serializer[V], des Deserializer[V]) *TypedManager[*CacheManager, K, V] {
+	return newTypedManager[*CacheManager, K, V](m, gen, ser, des)
+}
+
 func (m *CacheManager) Get(key Key, tp NewableFromBytes, expire time.Duration, generate GenerateFunc) (Cacheable, error) {
 	keyString := key.String()
 
@@ -144,6 +148,10 @@ func (m *CacheManager) getFromCache(key string) ([]byte, error) {
 	return res.Value, nil
 }
 
+func (m *CacheManager) Fetch(key string) ([]byte, error) {
+	return m.getFromCache(key)
+}
+
 func (m *CacheManager) storeResultCache(key string, data []byte, expire time.Duration) error {
 	rsv, ok := m.gate.Reserve()
 	if !ok {
@@ -158,4 +166,8 @@ func (m *CacheManager) storeResultCache(key string, data []byte, expire time.Dur
 		Flags:      uint32(0),
 		Expiration: int32(expire.Seconds()),
 	})
+}
+
+func (m *CacheManager) Store(key string, data []byte, expire time.Duration) error {
+	return m.storeResultCache(key, data, expire)
 }

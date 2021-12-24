@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/ptt/pttweb/article"
 	"github.com/ptt/pttweb/atomfeed"
@@ -33,9 +34,9 @@ func (r *BbsIndexRequest) String() string {
 	return fmt.Sprintf("pttweb:bbsindex/%v/%v", r.Brd.BrdName, r.Page)
 }
 
-func generateBbsIndex(key cache.Key) (cache.Cacheable, error) {
-	r := key.(*BbsIndexRequest)
+func generateBbsIndex(r *BbsIndexRequest) (*BbsIndex, time.Duration, error) {
 	page := r.Page
+	timeout := BbsIndexCacheTimeout
 
 	bbsindex := &BbsIndex{
 		Board:   r.Brd,
@@ -48,21 +49,25 @@ func generateBbsIndex(key cache.Key) (cache.Cacheable, error) {
 		page = paging.LastPageNo()
 		paging.SetPageNo(page)
 	} else if err := paging.SetPageNo(page); err != nil {
-		return nil, NewNotFoundError(err)
+		return nil, timeout, NewNotFoundError(err)
+	}
+
+	if page == paging.LastPageNo() {
+		timeout = BbsIndexLastPageCacheTimeout
 	}
 
 	// Fetch article list
 	var err error
 	bbsindex.Articles, err = ptt.GetArticleList(r.Brd.Ref(), paging.Cursor(), EntryPerPage)
 	if err != nil {
-		return nil, err
+		return nil, timeout, err
 	}
 
 	// Fetch bottoms when at last page
 	if page == paging.LastPageNo() {
 		bbsindex.Bottoms, err = ptt.GetBottomList(r.Brd.Ref())
 		if err != nil {
-			return nil, err
+			return nil, timeout, err
 		}
 	}
 
@@ -85,7 +90,7 @@ func generateBbsIndex(key cache.Key) (cache.Cacheable, error) {
 		bbsindex.NextPage = pageLink(page + 1)
 	}
 
-	return bbsindex, nil
+	return bbsindex, timeout, nil
 }
 
 type BbsSearchRequest struct {

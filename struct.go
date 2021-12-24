@@ -38,6 +38,26 @@ func gobDecodeCacheable(data []byte, obj cache.Cacheable) (cache.Cacheable, erro
 	return obj, nil
 }
 
+func makeSerializer[V any]() func(*V) ([]byte, error) {
+	return func(val *V) ([]byte, error) {
+		return gobEncodeBytes(val)
+	}
+}
+
+func makeDeserializer[V any]() func([]byte) (*V, error) {
+	return func(data []byte) (*V, error) {
+		val := new(V)
+		if err := gobDecode(data, val); err != nil {
+			return nil, err
+		}
+		return val, nil
+	}
+}
+
+func makeTypedCache[K cache.Key, V any](c *cache.CacheManager, gen cache.Generator[K, *V]) *cache.TypedManager[*cache.CacheManager, K, *V] {
+	return cache.NewTyped(c, gen, makeSerializer[V](), makeDeserializer[V]())
+}
+
 type Article struct {
 	ParsedTitle     string
 	PreviewContent  string
