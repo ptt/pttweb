@@ -336,8 +336,9 @@ func (r *ArticlePartRequest) Boardname() string {
 	return r.Brd.BrdName
 }
 
-func generateArticlePart(key cache.Key) (cache.Cacheable, error) {
-	r := key.(*ArticlePartRequest)
+func generateArticlePart(r *ArticlePartRequest) (*ArticlePart, time.Duration, error) {
+	timeout := time.Minute
+
 	ctx := context.TODO()
 	ctx = context.WithValue(ctx, CtxKeyBoardname, r)
 	if config.Experiments.ExtCache.Enabled(fastStrHash64(r.Filename)) {
@@ -347,10 +348,10 @@ func generateArticlePart(key cache.Key) (cache.Cacheable, error) {
 	p, err := ptt.GetArticleSelect(r.Brd.Ref(), pttbbs.SelectHead, r.Filename, r.CacheKey, r.Offset, -1)
 	if err == pttbbs.ErrNotFound {
 		// Returns an invalid result
-		return new(ArticlePart), nil
+		return new(ArticlePart), timeout, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, timeout, err
 	}
 
 	ap := new(ArticlePart)
@@ -365,12 +366,12 @@ func generateArticlePart(key cache.Key) (cache.Cacheable, error) {
 			article.WithDisableArticleHeader(),
 		)
 		if err != nil {
-			return nil, err
+			return nil, timeout, err
 		}
 		ap.ContentHtml = string(ra.HTML())
 	}
 
-	return ap, nil
+	return ap, timeout, nil
 }
 
 func truncateLargeContent(content []byte, size, maxScan int) []byte {

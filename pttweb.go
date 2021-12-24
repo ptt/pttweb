@@ -454,13 +454,15 @@ func handleBbsIndexRedirect(c *Context, w http.ResponseWriter) error {
 }
 
 var (
-	bbsIndexCache *cache.TypedManager[*cache.CacheManager, *BbsIndexRequest, *BbsIndex]
-	articleCache  *cache.TypedManager[*cache.CacheManager, *ArticleRequest, *Article]
+	bbsIndexCache    *cache.TypedManager[*cache.CacheManager, *BbsIndexRequest, *BbsIndex]
+	articleCache     *cache.TypedManager[*cache.CacheManager, *ArticleRequest, *Article]
+	articlePartCache *cache.TypedManager[*cache.CacheManager, *ArticlePartRequest, *ArticlePart]
 )
 
 func initTypedCaches() {
 	bbsIndexCache = makeTypedCache(cacheMgr, generateBbsIndex)
 	articleCache = makeTypedCache(cacheMgr, generateArticle)
+	articlePartCache = makeTypedCache(cacheMgr, generateArticlePart)
 }
 
 func handleBbs(c *Context, w http.ResponseWriter) error {
@@ -753,16 +755,15 @@ func handleArticlePoll(c *Context, w http.ResponseWriter) error {
 		return err
 	}
 
-	obj, err := cacheMgr.Get(&ArticlePartRequest{
+	ap, err := articlePartCache.Get(&ArticlePartRequest{
 		Brd:      *brd,
 		Filename: filename,
 		CacheKey: cacheKey,
 		Offset:   offset,
-	}, ZeroArticlePart, time.Minute, generateArticlePart)
+	})
 	if err != nil {
 		return err
 	}
-	ap := obj.(*ArticlePart)
 
 	res := new(page.ArticlePollResp)
 	res.Success = ap.IsValid
