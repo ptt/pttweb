@@ -252,8 +252,9 @@ func (r *ArticleRequest) Boardname() string {
 	return r.Brd.BrdName
 }
 
-func generateArticle(key cache.Key) (cache.Cacheable, error) {
-	r := key.(*ArticleRequest)
+func generateArticle(r *ArticleRequest) (*Article, time.Duration, error) {
+	timeout := ArticleCacheTimeout
+
 	ctx := context.TODO()
 	ctx = context.WithValue(ctx, CtxKeyBoardname, r)
 	if config.Experiments.ExtCache.Enabled(fastStrHash64(r.Filename)) {
@@ -262,19 +263,19 @@ func generateArticle(key cache.Key) (cache.Cacheable, error) {
 
 	p, err := r.Select(pttbbs.SelectHead, 0, HeadSize)
 	if err != nil {
-		return nil, err
+		return nil, timeout, err
 	}
 
 	// We don't want head and tail have duplicate content
 	if p.FileSize > HeadSize && p.FileSize <= HeadSize+TailSize {
 		p, err = r.Select(pttbbs.SelectPart, 0, p.FileSize)
 		if err != nil {
-			return nil, err
+			return nil, timeout, err
 		}
 	}
 
 	if len(p.Content) == 0 {
-		return nil, pttbbs.ErrNotFound
+		return nil, timeout, pttbbs.ErrNotFound
 	}
 
 	a := new(Article)
@@ -286,7 +287,7 @@ func generateArticle(key cache.Key) (cache.Cacheable, error) {
 		// Get and render tail
 		ptail, err := r.Select(pttbbs.SelectTail, -TailSize, TailSize)
 		if err != nil {
-			return nil, err
+			return nil, timeout, err
 		}
 		if len(ptail.Content) > 0 {
 			ra, err := article.Render(
@@ -295,7 +296,7 @@ func generateArticle(key cache.Key) (cache.Cacheable, error) {
 				article.WithDisableArticleHeader(),
 			)
 			if err != nil {
-				return nil, err
+				return nil, timeout, err
 			}
 			a.ContentTailHtml = ra.HTML()
 		}
@@ -311,13 +312,13 @@ func generateArticle(key cache.Key) (cache.Cacheable, error) {
 		article.WithContext(ctx),
 	)
 	if err != nil {
-		return nil, err
+		return nil, timeout, err
 	}
 	a.ParsedTitle = ra.ParsedTitle()
 	a.PreviewContent = ra.PreviewContent()
 	a.ContentHtml = ra.HTML()
 	a.IsValid = true
-	return a, nil
+	return a, timeout, nil
 }
 
 type ArticlePartRequest struct {

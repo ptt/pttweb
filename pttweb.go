@@ -453,10 +453,14 @@ func handleBbsIndexRedirect(c *Context, w http.ResponseWriter) error {
 	return nil
 }
 
-var bbsIndexCache *cache.TypedManager[*cache.CacheManager, *BbsIndexRequest, *BbsIndex]
+var (
+	bbsIndexCache *cache.TypedManager[*cache.CacheManager, *BbsIndexRequest, *BbsIndex]
+	articleCache  *cache.TypedManager[*cache.CacheManager, *ArticleRequest, *Article]
+)
 
 func initTypedCaches() {
 	bbsIndexCache = makeTypedCache(cacheMgr, generateBbsIndex)
+	articleCache = makeTypedCache(cacheMgr, generateArticle)
 }
 
 func handleBbs(c *Context, w http.ResponseWriter) error {
@@ -659,14 +663,14 @@ func handleArticleCommon(c *Context, w http.ResponseWriter, brdname, filename st
 	}
 
 	// Render content
-	obj, err := cacheMgr.Get(&ArticleRequest{
+	ar, err := articleCache.Get(&ArticleRequest{
 		Namespace: "bbs",
 		Brd:       *brd,
 		Filename:  filename,
 		Select: func(m pttbbs.SelectMethod, offset, maxlen int) (*pttbbs.ArticlePart, error) {
 			return ptt.GetArticleSelect(brd.Ref(), m, filename, "", offset, maxlen)
 		},
-	}, ZeroArticle, ArticleCacheTimeout, generateArticle)
+	})
 	// Try older filename when not found.
 	if err == pttbbs.ErrNotFound {
 		if name, ok := oldFilename(filename); ok {
@@ -678,7 +682,6 @@ func handleArticleCommon(c *Context, w http.ResponseWriter, brdname, filename st
 	if err != nil {
 		return err
 	}
-	ar := obj.(*Article)
 
 	if !ar.IsValid {
 		return NewNotFoundError(nil)
@@ -896,7 +899,7 @@ func handleManIndex(c *Context, w http.ResponseWriter, brd *pttbbs.Board, path s
 }
 
 func handleManArticle(c *Context, w http.ResponseWriter, brd *pttbbs.Board, path string) error {
-	obj, err := cacheMgr.Get(&ArticleRequest{
+	ar, err := articleCache.Get(&ArticleRequest{
 		Namespace: "man",
 		Brd:       *brd,
 		Filename:  path,
@@ -919,11 +922,10 @@ func handleManArticle(c *Context, w http.ResponseWriter, brd *pttbbs.Board, path
 				Content:  res.Content,
 			}, nil
 		},
-	}, ZeroArticle, ArticleCacheTimeout, generateArticle)
+	})
 	if err != nil {
 		return err
 	}
-	ar := obj.(*Article)
 
 	if !ar.IsValid {
 		return NewNotFoundError(nil)
