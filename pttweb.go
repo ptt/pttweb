@@ -455,12 +455,14 @@ func handleBbsIndexRedirect(c *Context, w http.ResponseWriter) error {
 
 var (
 	bbsIndexCache    *cache.TypedManager[*cache.CacheManager, *BbsIndexRequest, *BbsIndex]
+	bbsSearchCache   *cache.TypedManager[*cache.CacheManager, *BbsSearchRequest, *BbsIndex]
 	articleCache     *cache.TypedManager[*cache.CacheManager, *ArticleRequest, *Article]
 	articlePartCache *cache.TypedManager[*cache.CacheManager, *ArticlePartRequest, *ArticlePart]
 )
 
 func initTypedCaches() {
 	bbsIndexCache = makeTypedCache(cacheMgr, generateBbsIndex)
+	bbsSearchCache = makeTypedCache(cacheMgr, generateBbsSearch)
 	articleCache = makeTypedCache(cacheMgr, generateArticle)
 	articlePartCache = makeTypedCache(cacheMgr, generateArticlePart)
 }
@@ -567,9 +569,6 @@ func handleBbsSearch(c *Context, w http.ResponseWriter) error {
 	query := strings.TrimSpace(form.Get("q"))
 
 	pageNo := 1
-	// Note: TODO move timeout into the generating function.
-	timeout := BbsSearchLastPageCacheTimeout
-
 	if pageStr := form.Get("page"); pageStr != "" {
 		pg, err := strconv.Atoi(pageStr)
 		if err != nil || pg <= 0 {
@@ -577,7 +576,6 @@ func handleBbsSearch(c *Context, w http.ResponseWriter) error {
 			return nil
 		}
 		pageNo = pg
-		timeout = BbsSearchCacheTimeout
 	}
 
 	preds, err := parseQuery(query)
@@ -590,16 +588,15 @@ func handleBbsSearch(c *Context, w http.ResponseWriter) error {
 		return err
 	}
 
-	obj, err := cacheMgr.Get(&BbsSearchRequest{
+	bbsindex, err := bbsSearchCache.Get(&BbsSearchRequest{
 		Brd:   *brd,
 		Page:  pageNo,
 		Query: query,
 		Preds: preds,
-	}, ZeroBbsIndex, timeout, generateBbsSearch)
+	})
 	if err != nil {
 		return err
 	}
-	bbsindex := obj.(*BbsIndex)
 
 	if !bbsindex.IsValid {
 		return NewNotFoundError(fmt.Errorf("not a valid cache.BbsIndex: %v/%v", brd.BrdName, pageNo))

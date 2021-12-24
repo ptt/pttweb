@@ -106,13 +106,14 @@ func (r *BbsSearchRequest) String() string {
 	return fmt.Sprintf("pttweb:bbssearch/%v/%v/%v", r.Brd.BrdName, r.Page, query)
 }
 
-func generateBbsSearch(key cache.Key) (cache.Cacheable, error) {
-	r := key.(*BbsSearchRequest)
+func generateBbsSearch(r *BbsSearchRequest) (*BbsIndex, time.Duration, error) {
 	page := r.Page
 	if page == 0 {
 		page = 1
 	}
 	offset := -EntryPerPage * page
+
+	timeout := BbsSearchCacheTimeout
 
 	bbsindex := &BbsIndex{
 		Board:   r.Brd,
@@ -123,7 +124,7 @@ func generateBbsSearch(key cache.Key) (cache.Cacheable, error) {
 	// Search articles
 	articles, totalPosts, err := pttSearch.Search(r.Brd.Ref(), r.Preds, offset, EntryPerPage)
 	if err != nil {
-		return nil, err
+		return nil, timeout, err
 	}
 
 	// Handle paging
@@ -137,6 +138,7 @@ func generateBbsSearch(key cache.Key) (cache.Cacheable, error) {
 		if n < len(articles) {
 			articles = articles[:n]
 		}
+		timeout = BbsSearchLastPageCacheTimeout
 	}
 
 	// Show the page in reverse order.
@@ -166,7 +168,7 @@ func generateBbsSearch(key cache.Key) (cache.Cacheable, error) {
 		bbsindex.PrevPage = pageLink(page + 1)
 	}
 
-	return bbsindex, nil
+	return bbsindex, timeout, nil
 }
 
 type BoardAtomFeedRequest struct {
