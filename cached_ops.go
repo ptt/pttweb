@@ -12,7 +12,6 @@ import (
 
 	"github.com/ptt/pttweb/article"
 	"github.com/ptt/pttweb/atomfeed"
-	"github.com/ptt/pttweb/cache"
 	"github.com/ptt/pttweb/extcache"
 	"github.com/ptt/pttweb/pttbbs"
 
@@ -179,17 +178,17 @@ func (r *BoardAtomFeedRequest) String() string {
 	return fmt.Sprintf("pttweb:atomfeed/%v", r.Brd.BrdName)
 }
 
-func generateBoardAtomFeed(key cache.Key) (cache.Cacheable, error) {
-	r := key.(*BoardAtomFeedRequest)
+func generateBoardAtomFeed(r *BoardAtomFeedRequest) (*BoardAtomFeed, time.Duration, error) {
+	timeout := BbsIndexLastPageCacheTimeout
 
 	if atomConverter == nil {
-		return nil, errors.New("atom feed not configured")
+		return nil, timeout, errors.New("atom feed not configured")
 	}
 
 	// Fetch article list
 	articles, err := ptt.GetArticleList(r.Brd.Ref(), -EntryPerPage, EntryPerPage)
 	if err != nil {
-		return nil, err
+		return nil, timeout, err
 	}
 	// Fetch snippets and contruct posts.
 	var posts []*atomfeed.PostEntry
@@ -210,7 +209,7 @@ func generateBoardAtomFeed(key cache.Key) (cache.Cacheable, error) {
 	return &BoardAtomFeed{
 		Feed:    feed,
 		IsValid: err == nil,
-	}, nil
+	}, timeout, nil
 }
 
 const SnippetHeadSize = 16 * 1024 // Enough for 8 pages of 80x24.

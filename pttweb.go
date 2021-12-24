@@ -454,10 +454,11 @@ func handleBbsIndexRedirect(c *Context, w http.ResponseWriter) error {
 }
 
 var (
-	bbsIndexCache    *cache.TypedManager[*cache.CacheManager, *BbsIndexRequest, *BbsIndex]
-	bbsSearchCache   *cache.TypedManager[*cache.CacheManager, *BbsSearchRequest, *BbsIndex]
-	articleCache     *cache.TypedManager[*cache.CacheManager, *ArticleRequest, *Article]
-	articlePartCache *cache.TypedManager[*cache.CacheManager, *ArticlePartRequest, *ArticlePart]
+	bbsIndexCache      *cache.TypedManager[*cache.CacheManager, *BbsIndexRequest, *BbsIndex]
+	bbsSearchCache     *cache.TypedManager[*cache.CacheManager, *BbsSearchRequest, *BbsIndex]
+	articleCache       *cache.TypedManager[*cache.CacheManager, *ArticleRequest, *Article]
+	articlePartCache   *cache.TypedManager[*cache.CacheManager, *ArticlePartRequest, *ArticlePart]
+	boardAtomFeedCache *cache.TypedManager[*cache.CacheManager, *BoardAtomFeedRequest, *BoardAtomFeed]
 )
 
 func initTypedCaches() {
@@ -465,6 +466,7 @@ func initTypedCaches() {
 	bbsSearchCache = makeTypedCache(cacheMgr, generateBbsSearch)
 	articleCache = makeTypedCache(cacheMgr, generateArticle)
 	articlePartCache = makeTypedCache(cacheMgr, generateArticlePart)
+	boardAtomFeedCache = makeTypedCache(cacheMgr, generateBoardAtomFeed)
 }
 
 func handleBbs(c *Context, w http.ResponseWriter) error {
@@ -609,21 +611,18 @@ func handleBoardAtomFeed(c *Context, w http.ResponseWriter) error {
 	vars := mux.Vars(c.R)
 	brdname := vars["brdname"]
 
-	timeout := BbsIndexLastPageCacheTimeout
-
 	c.SetSkipOver18()
 	brd, err := getBoardByName(c, brdname)
 	if err != nil {
 		return err
 	}
 
-	obj, err := cacheMgr.Get(&BoardAtomFeedRequest{
+	baf, err := boardAtomFeedCache.Get(&BoardAtomFeedRequest{
 		Brd: *brd,
-	}, ZeroBoardAtomFeed, timeout, generateBoardAtomFeed)
+	})
 	if err != nil {
 		return err
 	}
-	baf := obj.(*BoardAtomFeed)
 
 	if !baf.IsValid {
 		return NewNotFoundError(fmt.Errorf("not a valid cache.BoardAtomFeed: %v", brd.BrdName))
