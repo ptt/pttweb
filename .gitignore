@@ -1,1 +1,6 @@
 templates/
+proto/api/board.pb.go
+proto/api/board_grpc.pb.go
+proto/man/man.pb.go
+proto/man/man_grpc.pb.go
+pttweb
