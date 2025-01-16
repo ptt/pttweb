@@ -49,8 +49,12 @@ func newUrlPattern(pattern string, handler UrlPatternHandler) *UrlPattern {
 	}
 }
 
-func imageHtmlTag(urlString string) string {
-	return fmt.Sprintf(`<img src="%s" alt="" loading="lazy" />`, html.EscapeString(urlString))
+func imageHtmlTag(urlString string, noReferrer bool) string {
+	referrerPolicy := ""
+	if noReferrer {
+		referrerPolicy = ` referrerpolicy="no-referrer"`
+	}
+	return fmt.Sprintf(`<img src="%s" alt="" loading="lazy"%s />`, html.EscapeString(urlString), referrerPolicy)
 }
 
 // Handlers
@@ -65,7 +69,7 @@ func handleYoutube(ctx context.Context, urlBytes []byte, match MatchIndices) ([]
 }
 
 func handleSameSchemeImage(ctx context.Context, urlBytes []byte, match MatchIndices) ([]Component, error) {
-	return []Component{MakeComponent(imageHtmlTag(string(match.ByteSliceOf(urlBytes, 1))))}, nil
+	return []Component{MakeComponent(imageHtmlTag(string(match.ByteSliceOf(urlBytes, 1)), false))}, nil
 }
 
 func handleImgurSingle(ctx context.Context, urlBytes []byte, match MatchIndices) ([]Component, error) {
@@ -86,14 +90,14 @@ func handleImgurSingle(ctx context.Context, urlBytes []byte, match MatchIndices)
 	if err != nil {
 		return nil, nil // Silently ignore
 	}
-	return []Component{MakeComponent(imageHtmlTag(src))}, nil
+	return []Component{MakeComponent(imageHtmlTag(src, true))}, nil
 }
 
 func handlePicmoe(ctx context.Context, urlBytes []byte, match MatchIndices) ([]Component, error) {
 	link := fmt.Sprintf(`http://picmoe.net/src/%ss.jpg`, string(match.ByteSliceOf(urlBytes, 1)))
-	return []Component{MakeComponent(imageHtmlTag(link))}, nil
+	return []Component{MakeComponent(imageHtmlTag(link, false))}, nil
 }
 
 func handleGenericImage(ctx context.Context, urlBytes []byte, match MatchIndices) ([]Component, error) {
-	return []Component{MakeComponent(imageHtmlTag(string(urlBytes)))}, nil
+	return []Component{MakeComponent(imageHtmlTag(string(urlBytes), false))}, nil
 }
