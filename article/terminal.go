@@ -35,12 +35,13 @@ func (t *TerminalState) SetColor(fg, bg, flags int) {
 	t.flags = flags
 }
 
-func (t *TerminalState) ApplyEscapeSequence(esc ansi.EscapeSequence) {
+func (t *TerminalState) ApplyEscapeSequence(esc ansi.EscapeSequence) *TerminalState {
+	var half *TerminalState
 	switch esc.Mode {
 	case 'm':
 		if len(esc.Nums) == 0 {
 			t.Reset()
-			return
+			return nil
 		}
 		fg, bg, flags := t.fg, t.bg, t.flags
 		for _, ctl := range esc.Nums {
@@ -57,12 +58,16 @@ func (t *TerminalState) ApplyEscapeSequence(esc ansi.EscapeSequence) {
 				fg = ctl % 10
 			case ctl >= 40 && ctl <= 47:
 				bg = ctl % 10
+			case ctl == 66:
+				s := TerminalState{fg: fg, bg: bg, flags: flags}
+				half = &s
 			default:
 				// be nice
 			}
 		}
 		t.SetColor(fg, bg, flags)
 	}
+	return half
 }
 
 func (t *TerminalState) Equal(u *TerminalState) bool {

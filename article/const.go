@@ -4,6 +4,10 @@ const (
 	ClassFgPrefix       = `f`
 	ClassBgPrefix       = `b`
 	ClassHighlight      = `hl`
+	ClassTwoColor       = `o`
+	ClassRightFgPrefix  = `rf`
+	ClassRightBgPrefix  = `rb`
+	ClassRightHighlight = `rhl`
 	ClassPushDiv        = `push`
 	ClassPushTag        = `push-tag`
 	ClassPushUserId     = `push-userid`

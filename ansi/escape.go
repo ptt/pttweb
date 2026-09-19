@@ -58,6 +58,9 @@ func (e *EscapeSequence) ParseNumbers(buf []rune) {
 				e.Nums = append(e.Nums, num)
 				part = part[0:0]
 			}
+			if r == ';' && i == len(buf)-1 {
+				e.Nums = append(e.Nums, 0)
+			}
 		}
 	}
 }

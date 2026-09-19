@@ -19,9 +19,10 @@ const (
 
 type Segment struct {
 	*bytes.Buffer
-	Tag        string
-	ExtraFlags ExtraFlag
-	TermState  TerminalState
+	Tag            string
+	ExtraFlags     ExtraFlag
+	TermState      TerminalState
+	TrailTermState *TerminalState
 }
 
 var extraFlagClasses = []string{
@@ -32,15 +33,25 @@ var extraFlagClasses = []string{
 }
 
 func (s *Segment) WriteOpen(w io.Writer) (int, error) {
-	classes := make([]string, 0, 3)
-	if s.TermState.Fg() != 7 {
+	classes := make([]string, 0, 6)
+	if s.TrailTermState != nil {
+		classes = append(classes, ClassTwoColor)
+	}
+	if s.TermState.Fg() != 7 || s.TrailTermState != nil {
 		classes = append(classes, ClassFgPrefix+strconv.Itoa(s.TermState.Fg()))
 	}
-	if s.TermState.Bg() != 0 {
+	if s.TermState.Bg() != 0 || s.TrailTermState != nil {
 		classes = append(classes, ClassBgPrefix+strconv.Itoa(s.TermState.Bg()))
 	}
 	if s.TermState.HasFlags(Highlighted) {
 		classes = append(classes, ClassHighlight)
+	}
+	if s.TrailTermState != nil {
+		classes = append(classes, ClassRightFgPrefix+strconv.Itoa(s.TrailTermState.Fg()))
+		classes = append(classes, ClassRightBgPrefix+strconv.Itoa(s.TrailTermState.Bg()))
+		if s.TrailTermState.HasFlags(Highlighted) {
+			classes = append(classes, ClassRightHighlight)
+		}
 	}
 	for i, fl := 0, ExtraFlag(1); fl < PushMaxVal; i, fl = i+1, fl<<1 {
 		if s.HasExtraFlags(fl) {
@@ -48,6 +59,9 @@ func (s *Segment) WriteOpen(w io.Writer) (int, error) {
 		}
 	}
 	if len(classes) > 0 {
+		if s.TrailTermState != nil {
+			return w.Write([]byte(`<` + s.Tag + ` class="` + strings.Join(classes, ` `) + `" data-text="` + string(s.Bytes()) + `">`))
+		}
 		return w.Write([]byte(`<` + s.Tag + ` class="` + strings.Join(classes, ` `) + `">`))
 	} else {
 		s.Tag = ""

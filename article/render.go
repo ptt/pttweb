@@ -71,6 +71,7 @@ type renderer struct {
 	segClosed bool
 
 	terminalState TerminalState
+	halfState     *TerminalState
 
 	acceptMetaLines bool
 
@@ -102,6 +103,7 @@ func (r *renderer) init() {
 	r.segClosed = true
 
 	r.terminalState.Reset()
+	r.halfState = nil
 
 	r.acceptMetaLines = true
 
@@ -146,7 +148,7 @@ func (r *renderer) currSeg() *Segment {
 }
 
 func (r *renderer) escape(esc ansi.EscapeSequence) {
-	r.terminalState.ApplyEscapeSequence(esc)
+	r.halfState = r.terminalState.ApplyEscapeSequence(esc)
 	if r.segClosed || !r.terminalState.Equal(&r.currSeg().TermState) {
 		r.startSegment()
 	}
@@ -174,14 +176,44 @@ func (r *renderer) endSegment() {
 }
 
 func (r *renderer) oneRune(ru rune) {
+	if ru == '\n' {
+		r.halfState = nil
+		seg := r.currSeg()
+		r.mapper.Record(r.lineBuf.Len(), len(r.lineSegs)-1, seg.Len())
+		fastWriteHtmlEscapedRune(seg.Buffer, ru)
+		r.lineBuf.WriteRune(ru)
+		r.endOfLine()
+		return
+	}
+
+	if r.halfState != nil {
+		lead := *r.halfState
+		r.halfState = nil
+		if !lead.Equal(&r.terminalState) {
+			trail := r.terminalState
+			if !r.segClosed {
+				r.endSegment()
+			}
+			r.lineSegs = append(r.lineSegs, Segment{
+				Tag:            "span",
+				TermState:      lead,
+				TrailTermState: &trail,
+				Buffer:         &bytes.Buffer{},
+			})
+			r.segClosed = false
+			seg := &r.lineSegs[len(r.lineSegs)-1]
+			r.mapper.Record(r.lineBuf.Len(), len(r.lineSegs)-1, seg.Len())
+			fastWriteHtmlEscapedRune(seg.Buffer, ru)
+			r.lineBuf.WriteRune(ru)
+			r.endSegment()
+			return
+		}
+	}
+
 	seg := r.currSeg()
 	r.mapper.Record(r.lineBuf.Len(), len(r.lineSegs)-1, seg.Len())
 	fastWriteHtmlEscapedRune(seg.Buffer, ru)
 	r.lineBuf.WriteRune(ru)
-
-	if ru == '\n' {
-		r.endOfLine()
-	}
 }
 
 func (r *renderer) outputToSegment(i, off int) {
