@@ -7,7 +7,7 @@ import (
 	"github.com/ptt/pttweb/pttbbs"
 	"github.com/ptt/pttweb/richcontent"
 
-	"golang.org/x/net/context"
+	"context"
 )
 
 var aidPatterns = []struct {

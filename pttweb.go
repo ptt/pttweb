@@ -26,7 +26,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
-	"golang.org/x/net/context"
+	"context"
 
 	"github.com/ptt/pttweb/atomfeed"
 	"github.com/ptt/pttweb/cache"

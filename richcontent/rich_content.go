@@ -1,9 +1,8 @@
 package richcontent
 
 import (
+	"context"
 	"sort"
-
-	"golang.org/x/net/context"
 )
 
 type Component interface {

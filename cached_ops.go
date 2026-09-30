@@ -15,7 +15,7 @@ import (
 	"github.com/ptt/pttweb/extcache"
 	"github.com/ptt/pttweb/pttbbs"
 
-	"golang.org/x/net/context"
+	"context"
 )
 
 const (

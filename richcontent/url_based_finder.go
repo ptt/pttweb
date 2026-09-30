@@ -1,13 +1,13 @@
 package richcontent
 
 import (
+	"context"
 	"fmt"
 	"html"
 	"net/url"
 	"regexp"
 
 	"github.com/ptt/pttweb/extcache"
-	"golang.org/x/net/context"
 )
 
 func FindUrl(ctx context.Context, input []byte) ([]RichContent, error) {

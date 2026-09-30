@@ -9,7 +9,7 @@ import (
 	"github.com/ptt/pttweb/pttbbs"
 	"github.com/ptt/pttweb/richcontent"
 
-	"golang.org/x/net/context"
+	"context"
 )
 
 const (
@@ -83,7 +83,7 @@ type renderer struct {
 
 func newRenderer() *renderer {
 	ar := &renderer{
-		ctx:      context.TODO(),
+		ctx:      context.Background(),
 		mapper:   NewIndexMapper(2),
 		lineSegs: make([]Segment, 0, 8),
 	}
