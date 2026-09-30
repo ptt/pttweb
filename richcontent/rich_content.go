@@ -16,9 +16,15 @@ type RichContent interface {
 	Components() []Component
 }
 
+type TextPosRichContent interface {
+	RichContent
+	TextPos() (int, int)
+}
+
 type Finder func(ctx context.Context, input []byte) ([]RichContent, error)
 
 var defaultFinders = []Finder{
+	FindMarkdownUrl,
 	FindUrl,
 }
 
@@ -82,6 +88,26 @@ func MakeRichContent(begin, end int, urlString string, components []Component) R
 		end:        end,
 		urlString:  urlString,
 		components: components,
+	}
+}
+
+type markdownRichComponent struct {
+	simpleRichComponent
+	textBegin, textEnd int
+}
+
+func (c *markdownRichComponent) TextPos() (int, int) { return c.textBegin, c.textEnd }
+
+func MakeMarkdownRichContent(begin, end, textBegin, textEnd int, urlString string, components []Component) RichContent {
+	return &markdownRichComponent{
+		simpleRichComponent: simpleRichComponent{
+			begin:      begin,
+			end:        end,
+			urlString:  urlString,
+			components: components,
+		},
+		textBegin: textBegin,
+		textEnd:   textEnd,
 	}
 }
 

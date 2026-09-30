@@ -34,6 +34,46 @@ func TestRender(t *testing.T) {
 			input:    "\033[1;31;66;0;32m雙\033[m",
 			wantHTML: `<span class="o f1 b0 hl rf2 rb0" data-text="雙">雙</span>`,
 		},
+		{
+			desc:     "markdown link plain",
+			input:    "[PTT](https://term.ptt.cc)",
+			wantHTML: `<a href="https://term.ptt.cc" target="_blank" rel="nofollow">PTT</a>`,
+		},
+		{
+			desc:     "markdown link with text around",
+			input:    "Visit [PTT](https://term.ptt.cc) now!",
+			wantHTML: `Visit <a href="https://term.ptt.cc" target="_blank" rel="nofollow">PTT</a> now!`,
+		},
+		{
+			desc:     "markdown link with Chinese text",
+			input:    "請參考 [說明文件](https://ptt.cc/doc)",
+			wantHTML: `請參考 <a href="https://ptt.cc/doc" target="_blank" rel="nofollow">說明文件</a>`,
+		},
+		{
+			desc:     "markdown link in color segment",
+			input:    "\033[31m[PTT](https://term.ptt.cc) bar\033[m",
+			wantHTML: `<span class="f1"><a href="https://term.ptt.cc" target="_blank" rel="nofollow">PTT</a> bar</span>`,
+		},
+		{
+			desc:     "markdown link with internal color change",
+			input:    "[\033[31mP\033[32mTT\033[m](https://term.ptt.cc)",
+			wantHTML: `<a href="https://term.ptt.cc" target="_blank" rel="nofollow"><span class="f1">P</span><span class="f2">TT</span></a>`,
+		},
+		{
+			desc:     "markdown link with SGR 66 dual color",
+			input:    "[\033[1;31;66;0;32m雙\033[m](https://term.ptt.cc)",
+			wantHTML: `<a href="https://term.ptt.cc" target="_blank" rel="nofollow"><span class="o f1 b0 hl rf2 rb0" data-text="雙">雙</span></a>`,
+		},
+		{
+			desc:     "multiple markdown links on one line",
+			input:    "[A](https://a.com) and [B](https://b.com)",
+			wantHTML: `<a href="https://a.com" target="_blank" rel="nofollow">A</a> and <a href="https://b.com" target="_blank" rel="nofollow">B</a>`,
+		},
+		{
+			desc:     "non-link brackets not altered",
+			input:    "[問卦] 今日天氣真好",
+			wantHTML: `[問卦] 今日天氣真好`,
+		},
 	}
 	for _, test := range tests {
 		ra, err := Render(WithContent([]byte(test.input)), WithDisableArticleHeader())

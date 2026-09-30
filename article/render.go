@@ -353,22 +353,58 @@ func (r *renderer) processNormalContentLine(line []byte) {
 		linkBegin, linkEnd := makeExternalUrlLink(rc.URLString())
 
 		lbegin, lend := rc.Pos()
+		tbegin, tend := lbegin, lend
+		if tr, ok := rc.(richcontent.TextPosRichContent); ok {
+			tbegin, tend = tr.TextPos()
+		}
+
 		begin := r.mapper.Get(lbegin)
-		end := r.mapper.Get(lend)
 		r.outputToSegment(begin[0], begin[1])
-		if begin[0] == end[0] {
-			// same segment: embed
-			r.maybeOpenCurrentSegment()
-			r.buf.WriteString(linkBegin)
-			r.outputToSegment(end[0], end[1])
-			r.buf.WriteString(linkEnd)
+
+		if tbegin != lbegin || tend != lend {
+			tb := r.mapper.Get(tbegin)
+			if tb[0] == begin[0] {
+				r.segOffset = tb[1]
+			} else {
+				r.skipToSegment(tb[0], tb[1])
+			}
+
+			te := r.mapper.Get(tend)
+			if tb[0] == te[0] {
+				r.maybeOpenCurrentSegment()
+				r.buf.WriteString(linkBegin)
+				r.outputToSegment(te[0], te[1])
+				r.buf.WriteString(linkEnd)
+			} else {
+				r.maybeCloseCurrentSegment()
+				r.buf.WriteString(linkBegin)
+				r.outputToSegment(te[0], te[1])
+				r.maybeCloseCurrentSegment()
+				r.buf.WriteString(linkEnd)
+			}
+
+			end := r.mapper.Get(lend)
+			if end[0] == te[0] {
+				r.segOffset = end[1]
+			} else {
+				r.skipToSegment(end[0], end[1])
+			}
 		} else {
-			// different segments: split, wrap-around
-			r.maybeCloseCurrentSegment()
-			r.buf.WriteString(linkBegin)
-			r.outputToSegment(end[0], end[1])
-			r.maybeCloseCurrentSegment()
-			r.buf.WriteString(linkEnd)
+			end := r.mapper.Get(lend)
+			if begin[0] == end[0] {
+				// same segment: embed
+				r.maybeOpenCurrentSegment()
+				r.buf.WriteString(linkBegin)
+				r.outputToSegment(end[0], end[1])
+				r.buf.WriteString(linkEnd)
+			} else {
+				// different segments: split, wrap-around
+				r.maybeCloseCurrentSegment()
+				r.buf.WriteString(linkBegin)
+				r.outputToSegment(end[0], end[1])
+				r.maybeCloseCurrentSegment()
+				r.buf.WriteString(linkEnd)
+			}
 		}
 	}
 	r.outputToSegment(len(r.lineSegs), 0)
