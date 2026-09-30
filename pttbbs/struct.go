@@ -1,6 +1,7 @@
 package pttbbs
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -18,12 +19,12 @@ type BoardRef interface {
 }
 
 type Pttbbs interface {
-	GetBoards(refs ...BoardRef) ([]Board, error)
-	GetArticleList(ref BoardRef, offset, length int) ([]Article, error)
-	GetBottomList(ref BoardRef) ([]Article, error)
-	GetArticleSelect(ref BoardRef, meth SelectMethod, filename, cacheKey string, offset, maxlen int) (*ArticlePart, error)
-	Hotboards() ([]Board, error)
-	Search(ref BoardRef, preds []SearchPredicate, offset, length int) (articles []Article, totalPosts int, err error)
+	GetBoards(ctx context.Context, refs ...BoardRef) ([]Board, error)
+	GetArticleList(ctx context.Context, ref BoardRef, offset, length int) ([]Article, error)
+	GetBottomList(ctx context.Context, ref BoardRef) ([]Article, error)
+	GetArticleSelect(ctx context.Context, ref BoardRef, meth SelectMethod, filename, cacheKey string, offset, maxlen int) (*ArticlePart, error)
+	Hotboards(ctx context.Context) ([]Board, error)
+	Search(ctx context.Context, ref BoardRef, preds []SearchPredicate, offset, length int) (articles []Article, totalPosts int, err error)
 }
 
 func OneBoard(boards []Board, err error) (Board, error) {

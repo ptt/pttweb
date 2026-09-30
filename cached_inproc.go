@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"time"
@@ -49,12 +50,12 @@ func setBrdCache(brdname string, board *pttbbs.Board) {
 	}
 }
 
-func getBoardByNameCached(brdname string) (*pttbbs.Board, error) {
+func getBoardByNameCached(ctx context.Context, brdname string) (*pttbbs.Board, error) {
 	if brd := getBrdCache(brdname); brd != nil {
 		return brd, nil
 	}
 
-	board, err := pttbbs.OneBoard(ptt.GetBoards(pttbbs.BoardRefByName(brdname)))
+	board, err := pttbbs.OneBoard(ptt.GetBoards(ctx, pttbbs.BoardRefByName(brdname)))
 	if err != nil {
 		return nil, err
 	}

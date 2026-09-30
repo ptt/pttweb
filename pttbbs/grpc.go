@@ -11,6 +11,15 @@ import (
 
 var grpcCallOpts = []grpc.CallOption{grpc.FailFast(true)}
 
+const defaultGrpcTimeout = 10 * time.Second
+
+func ensureCtx(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		return context.WithTimeout(context.Background(), defaultGrpcTimeout)
+	}
+	return ctx, func() {}
+}
+
 type GrpcRemotePtt struct {
 	service apipb.BoardServiceClient
 }
@@ -25,12 +34,15 @@ func NewGrpcRemotePtt(boarddAddr string) (*GrpcRemotePtt, error) {
 	}, nil
 }
 
-func (p *GrpcRemotePtt) GetBoards(brefs ...BoardRef) ([]Board, error) {
+func (p *GrpcRemotePtt) GetBoards(ctx context.Context, brefs ...BoardRef) ([]Board, error) {
+	ctx, cancel := ensureCtx(ctx)
+	defer cancel()
+
 	refs := make([]*apipb.BoardRef, len(brefs))
 	for i, ref := range brefs {
 		refs[i] = ref.boardRef()
 	}
-	rep, err := p.service.Board(context.TODO(), &apipb.BoardRequest{
+	rep, err := p.service.Board(ctx, &apipb.BoardRequest{
 		Ref: refs,
 	}, grpcCallOpts...)
 	if err != nil {
@@ -72,8 +84,8 @@ func hasFlag(bits, mask uint32) bool {
 	return (bits & mask) == mask
 }
 
-func (p *GrpcRemotePtt) GetArticleList(ref BoardRef, offset, length int) ([]Article, error) {
-	return p.doList(&apipb.ListRequest{
+func (p *GrpcRemotePtt) GetArticleList(ctx context.Context, ref BoardRef, offset, length int) ([]Article, error) {
+	return p.doList(ctx, &apipb.ListRequest{
 		Ref:          ref.boardRef(),
 		IncludePosts: true,
 		Offset:       int32(offset),
@@ -81,15 +93,18 @@ func (p *GrpcRemotePtt) GetArticleList(ref BoardRef, offset, length int) ([]Arti
 	}, func(rep *apipb.ListReply) []*apipb.Post { return rep.Posts })
 }
 
-func (p *GrpcRemotePtt) GetBottomList(ref BoardRef) ([]Article, error) {
-	return p.doList(&apipb.ListRequest{
+func (p *GrpcRemotePtt) GetBottomList(ctx context.Context, ref BoardRef) ([]Article, error) {
+	return p.doList(ctx, &apipb.ListRequest{
 		Ref:            ref.boardRef(),
 		IncludeBottoms: true,
 	}, func(rep *apipb.ListReply) []*apipb.Post { return rep.Bottoms })
 }
 
-func (p *GrpcRemotePtt) doList(req *apipb.ListRequest, extractArticles func(*apipb.ListReply) []*apipb.Post) ([]Article, error) {
-	rep, err := p.service.List(context.TODO(), req, grpcCallOpts...)
+func (p *GrpcRemotePtt) doList(ctx context.Context, req *apipb.ListRequest, extractArticles func(*apipb.ListReply) []*apipb.Post) ([]Article, error) {
+	ctx, cancel := ensureCtx(ctx)
+	defer cancel()
+
+	rep, err := p.service.List(ctx, req, grpcCallOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -113,8 +128,11 @@ func toArticle(p *apipb.Post) Article {
 	}
 }
 
-func (p *GrpcRemotePtt) GetArticleSelect(ref BoardRef, meth SelectMethod, filename, cacheKey string, offset, maxlen int) (*ArticlePart, error) {
-	rep, err := p.service.Content(context.TODO(), &apipb.ContentRequest{
+func (p *GrpcRemotePtt) GetArticleSelect(ctx context.Context, ref BoardRef, meth SelectMethod, filename, cacheKey string, offset, maxlen int) (*ArticlePart, error) {
+	ctx, cancel := ensureCtx(ctx)
+	defer cancel()
+
+	rep, err := p.service.Content(ctx, &apipb.ContentRequest{
 		BoardRef:         ref.boardRef(),
 		Filename:         filename,
 		ConsistencyToken: cacheKey,
@@ -153,8 +171,11 @@ func toArticlePart(c *apipb.Content) *ArticlePart {
 	}
 }
 
-func (p *GrpcRemotePtt) Hotboards() ([]Board, error) {
-	rep, err := p.service.Hotboard(context.TODO(), &apipb.HotboardRequest{}, grpcCallOpts...)
+func (p *GrpcRemotePtt) Hotboards(ctx context.Context) ([]Board, error) {
+	ctx, cancel := ensureCtx(ctx)
+	defer cancel()
+
+	rep, err := p.service.Hotboard(ctx, &apipb.HotboardRequest{}, grpcCallOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -165,12 +186,15 @@ func (p *GrpcRemotePtt) Hotboards() ([]Board, error) {
 	return boards, nil
 }
 
-func (p *GrpcRemotePtt) Search(ref BoardRef, preds []SearchPredicate, offset, length int) ([]Article, int, error) {
+func (p *GrpcRemotePtt) Search(ctx context.Context, ref BoardRef, preds []SearchPredicate, offset, length int) ([]Article, int, error) {
+	ctx, cancel := ensureCtx(ctx)
+	defer cancel()
+
 	var filters []*apipb.SearchFilter
 	for _, pred := range preds {
 		filters = append(filters, pred.toSearchFilter())
 	}
-	rep, err := p.service.Search(context.TODO(), &apipb.SearchRequest{
+	rep, err := p.service.Search(ctx, &apipb.SearchRequest{
 		Ref:    ref.boardRef(),
 		Filter: filters,
 		Offset: int32(offset),

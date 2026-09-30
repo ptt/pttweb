@@ -52,15 +52,18 @@ func generateBbsIndex(key cache.Key) (cache.Cacheable, error) {
 	}
 
 	// Fetch article list
+	ctx, cancel := context.WithTimeout(context.Background(), cache.DefaultTimeout)
+	defer cancel()
+
 	var err error
-	bbsindex.Articles, err = ptt.GetArticleList(r.Brd.Ref(), paging.Cursor(), EntryPerPage)
+	bbsindex.Articles, err = ptt.GetArticleList(ctx, r.Brd.Ref(), paging.Cursor(), EntryPerPage)
 	if err != nil {
 		return nil, err
 	}
 
 	// Fetch bottoms when at last page
 	if page == paging.LastPageNo() {
-		bbsindex.Bottoms, err = ptt.GetBottomList(r.Brd.Ref())
+		bbsindex.Bottoms, err = ptt.GetBottomList(ctx, r.Brd.Ref())
 		if err != nil {
 			return nil, err
 		}
@@ -116,7 +119,10 @@ func generateBbsSearch(key cache.Key) (cache.Cacheable, error) {
 	}
 
 	// Search articles
-	articles, totalPosts, err := pttSearch.Search(r.Brd.Ref(), r.Preds, offset, EntryPerPage)
+	ctx, cancel := context.WithTimeout(context.Background(), cache.DefaultTimeout)
+	defer cancel()
+
+	articles, totalPosts, err := pttSearch.Search(ctx, r.Brd.Ref(), r.Preds, offset, EntryPerPage)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +186,10 @@ func generateBoardAtomFeed(key cache.Key) (cache.Cacheable, error) {
 	}
 
 	// Fetch article list
-	articles, err := ptt.GetArticleList(r.Brd.Ref(), -EntryPerPage, EntryPerPage)
+	ctx, cancel := context.WithTimeout(context.Background(), cache.DefaultTimeout)
+	defer cancel()
+
+	articles, err := ptt.GetArticleList(ctx, r.Brd.Ref(), -EntryPerPage, EntryPerPage)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +197,7 @@ func generateBoardAtomFeed(key cache.Key) (cache.Cacheable, error) {
 	var posts []*atomfeed.PostEntry
 	for _, article := range articles {
 		// Use an empty string when error.
-		snippet, _ := getArticleSnippet(r.Brd, article.FileName)
+		snippet, _ := getArticleSnippet(ctx, r.Brd, article.FileName)
 		posts = append(posts, &atomfeed.PostEntry{
 			Article: article,
 			Snippet: snippet,
@@ -208,8 +217,8 @@ func generateBoardAtomFeed(key cache.Key) (cache.Cacheable, error) {
 
 const SnippetHeadSize = 16 * 1024 // Enough for 8 pages of 80x24.
 
-func getArticleSnippet(brd pttbbs.Board, filename string) (string, error) {
-	p, err := ptt.GetArticleSelect(brd.Ref(), pttbbs.SelectHead, filename, "", 0, SnippetHeadSize)
+func getArticleSnippet(ctx context.Context, brd pttbbs.Board, filename string) (string, error) {
+	p, err := ptt.GetArticleSelect(ctx, brd.Ref(), pttbbs.SelectHead, filename, "", 0, SnippetHeadSize)
 	if err != nil {
 		return "", err
 	}
@@ -236,7 +245,7 @@ type ArticleRequest struct {
 	Namespace string
 	Brd       pttbbs.Board
 	Filename  string
-	Select    func(m pttbbs.SelectMethod, offset, maxlen int) (*pttbbs.ArticlePart, error)
+	Select    func(ctx context.Context, m pttbbs.SelectMethod, offset, maxlen int) (*pttbbs.ArticlePart, error)
 }
 
 func (r *ArticleRequest) String() string {
@@ -249,20 +258,21 @@ func (r *ArticleRequest) Boardname() string {
 
 func generateArticle(key cache.Key) (cache.Cacheable, error) {
 	r := key.(*ArticleRequest)
-	ctx := context.TODO()
+	ctx, cancel := context.WithTimeout(context.Background(), cache.DefaultTimeout)
+	defer cancel()
 	ctx = context.WithValue(ctx, CtxKeyBoardname, r)
 	if config.Experiments.ExtCache.Enabled(fastStrHash64(r.Filename)) {
 		ctx = extcache.WithExtCache(ctx, extCache)
 	}
 
-	p, err := r.Select(pttbbs.SelectHead, 0, HeadSize)
+	p, err := r.Select(ctx, pttbbs.SelectHead, 0, HeadSize)
 	if err != nil {
 		return nil, err
 	}
 
 	// We don't want head and tail have duplicate content
 	if p.FileSize > HeadSize && p.FileSize <= HeadSize+TailSize {
-		p, err = r.Select(pttbbs.SelectPart, 0, p.FileSize)
+		p, err = r.Select(ctx, pttbbs.SelectPart, 0, p.FileSize)
 		if err != nil {
 			return nil, err
 		}
@@ -279,7 +289,7 @@ func generateArticle(key cache.Key) (cache.Cacheable, error) {
 
 	if a.IsPartial {
 		// Get and render tail
-		ptail, err := r.Select(pttbbs.SelectTail, -TailSize, TailSize)
+		ptail, err := r.Select(ctx, pttbbs.SelectTail, -TailSize, TailSize)
 		if err != nil {
 			return nil, err
 		}
@@ -332,13 +342,14 @@ func (r *ArticlePartRequest) Boardname() string {
 
 func generateArticlePart(key cache.Key) (cache.Cacheable, error) {
 	r := key.(*ArticlePartRequest)
-	ctx := context.TODO()
+	ctx, cancel := context.WithTimeout(context.Background(), cache.DefaultTimeout)
+	defer cancel()
 	ctx = context.WithValue(ctx, CtxKeyBoardname, r)
 	if config.Experiments.ExtCache.Enabled(fastStrHash64(r.Filename)) {
 		ctx = extcache.WithExtCache(ctx, extCache)
 	}
 
-	p, err := ptt.GetArticleSelect(r.Brd.Ref(), pttbbs.SelectHead, r.Filename, r.CacheKey, r.Offset, -1)
+	p, err := ptt.GetArticleSelect(ctx, r.Brd.Ref(), pttbbs.SelectHead, r.Filename, r.CacheKey, r.Offset, -1)
 	if err == pttbbs.ErrNotFound {
 		// Returns an invalid result
 		return new(ArticlePart), nil

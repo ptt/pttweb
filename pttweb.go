@@ -444,11 +444,11 @@ func handleClsWithBid(c *Context, w http.ResponseWriter, bid pttbbs.BoardID) err
 		return NewNotFoundError(fmt.Errorf("invalid bid: %v", bid))
 	}
 
-	board, err := pttbbs.OneBoard(ptt.GetBoards(pttbbs.BoardRefByBid(bid)))
+	board, err := pttbbs.OneBoard(ptt.GetBoards(c.R.Context(), pttbbs.BoardRefByBid(bid)))
 	if err != nil {
 		return err
 	}
-	children, err := ptt.GetBoards(pttbbs.BoardRefsByBid(board.Children)...)
+	children, err := ptt.GetBoards(c.R.Context(), pttbbs.BoardRefsByBid(board.Children)...)
 	if err != nil {
 		return err
 	}
@@ -458,7 +458,7 @@ func handleClsWithBid(c *Context, w http.ResponseWriter, bid pttbbs.BoardID) err
 }
 
 func handleHotboards(c *Context, w http.ResponseWriter) error {
-	boards, err := ptt.Hotboards()
+	boards, err := ptt.Hotboards(c.R.Context())
 	if err != nil {
 		return err
 	}
@@ -699,8 +699,8 @@ func handleArticleCommon(c *Context, w http.ResponseWriter, brdname, filename st
 		Namespace: "bbs",
 		Brd:       *brd,
 		Filename:  filename,
-		Select: func(m pttbbs.SelectMethod, offset, maxlen int) (*pttbbs.ArticlePart, error) {
-			return ptt.GetArticleSelect(brd.Ref(), m, filename, "", offset, maxlen)
+		Select: func(ctx context.Context, m pttbbs.SelectMethod, offset, maxlen int) (*pttbbs.ArticlePart, error) {
+			return ptt.GetArticleSelect(ctx, brd.Ref(), m, filename, "", offset, maxlen)
 		},
 	}, ZeroArticle, ArticleCacheTimeout, generateArticle)
 	// Try older filename when not found.
@@ -842,7 +842,7 @@ func getBoardByName(c *Context, brdname string) (*pttbbs.Board, error) {
 		return nil, NewNotFoundError(fmt.Errorf("invalid board name: %s", brdname))
 	}
 
-	brd, err := getBoardByNameCached(brdname)
+	brd, err := getBoardByNameCached(c.R.Context(), brdname)
 	if err != nil {
 		return nil, err
 	}
@@ -917,7 +917,7 @@ func handleMan(c *Context, w http.ResponseWriter) error {
 }
 
 func handleManIndex(c *Context, w http.ResponseWriter, brd *pttbbs.Board, path string) error {
-	res, err := mand.List(context.TODO(), &manpb.ListRequest{
+	res, err := mand.List(c.R.Context(), &manpb.ListRequest{
 		BoardName: brd.BrdName,
 		Path:      path,
 	}, grpc.FailFast(true))
@@ -936,8 +936,8 @@ func handleManArticle(c *Context, w http.ResponseWriter, brd *pttbbs.Board, path
 		Namespace: "man",
 		Brd:       *brd,
 		Filename:  path,
-		Select: func(m pttbbs.SelectMethod, offset, maxlen int) (*pttbbs.ArticlePart, error) {
-			res, err := mand.Article(context.TODO(), &manpb.ArticleRequest{
+		Select: func(ctx context.Context, m pttbbs.SelectMethod, offset, maxlen int) (*pttbbs.ArticlePart, error) {
+			res, err := mand.Article(ctx, &manpb.ArticleRequest{
 				BoardName:  brd.BrdName,
 				Path:       path,
 				SelectType: manSelectType(m),
