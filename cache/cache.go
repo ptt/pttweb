@@ -2,12 +2,13 @@ package cache
 
 import (
 	"errors"
+	"fmt"
 	"log"
-	"sync"
 	"time"
 
 	"github.com/bradfitz/gomemcache/memcache"
 	"github.com/ptt/pttweb/gate"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -34,20 +35,11 @@ type Cacheable interface {
 
 type GenerateFunc func(key Key) (Cacheable, error)
 
-type result struct {
-	Obj Cacheable
-	Err error
-}
-
-type resultChan chan result
-
 type CacheManager struct {
 	server string
 	mc     *memcache.Client
 	gate   *gate.Gate
-
-	mu      sync.Mutex
-	pending map[string][]resultChan
+	group  singleflight.Group
 }
 
 func NewCacheManager(server string, maxOpen int) *CacheManager {
@@ -56,10 +48,9 @@ func NewCacheManager(server string, maxOpen int) *CacheManager {
 	mc.MaxIdleConns = maxOpen
 
 	return &CacheManager{
-		server:  server,
-		mc:      mc,
-		gate:    gate.New(maxOpen, maxOpen),
-		pending: make(map[string][]resultChan),
+		server: server,
+		mc:     mc,
+		gate:   gate.New(maxOpen, maxOpen),
 	}
 }
 
@@ -72,61 +63,47 @@ func (m *CacheManager) Get(key Key, tp NewableFromBytes, expire time.Duration, g
 			log.Printf("getFromCache: key: %q, err: %v", keyString, err)
 		}
 	} else if data != nil {
-		return tp.NewFromBytes(data)
-	}
-
-	ch := make(chan result)
-
-	// No luck. Check if anyone is generating
-	if first := m.putPendings(keyString, ch); first {
-		// We are the one responsible for generating the result
-		go m.doGenerate(key, keyString, expire, generate)
-	}
-
-	result := <-ch
-	return result.Obj, result.Err
-}
-
-func (m *CacheManager) doGenerate(key Key, keyString string, expire time.Duration, generate GenerateFunc) {
-	obj, err := generate(key)
-	if err == nil {
-		// There is no errors during generating, store result in cache
-		if data, err := obj.EncodeToBytes(); err != nil {
-			log.Printf("obj.EncodeToBytes: key: %q, err: %v", keyString, err)
-		} else if err = m.storeResultCache(keyString, data, expire); err != nil {
-			log.Printf("storeResultCache: key: %q, err: %v", keyString, err)
+		if obj, err := tp.NewFromBytes(data); err == nil {
+			return obj, nil
+		} else {
+			log.Printf("tp.NewFromBytes: key: %q, err: %v", keyString, err)
 		}
 	}
 
-	// Respond to all audience
-	result := result{
-		Obj: obj,
-		Err: err,
+	val, err, _ := m.group.Do(keyString, func() (retVal interface{}, retErr error) {
+		defer func() {
+			if r := recover(); r != nil {
+				retErr = fmt.Errorf("panic in cache generator for %q: %v", keyString, r)
+				log.Println(retErr)
+			}
+		}()
+
+		// Double-check cache in case another flight just finished
+		if data, err := m.getFromCache(keyString); err == nil && data != nil {
+			if obj, err := tp.NewFromBytes(data); err == nil {
+				return obj, nil
+			}
+		}
+
+		obj, err := generate(key)
+		if err != nil {
+			return nil, err
+		}
+
+		// Store result in cache if generated successfully
+		if data, err := obj.EncodeToBytes(); err != nil {
+			log.Printf("obj.EncodeToBytes: key: %q, err: %v", keyString, err)
+		} else if err := m.storeResultCache(keyString, data, expire); err != nil {
+			log.Printf("storeResultCache: key: %q, err: %v", keyString, err)
+		}
+
+		return obj, nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
-	for _, c := range m.removePendings(keyString) {
-		c <- result
-	}
-}
-
-func (m *CacheManager) putPendings(key string, ch resultChan) (first bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if _, ok := m.pending[key]; !ok {
-		first = true
-		m.pending[key] = make([]resultChan, 0, 1)
-	}
-	m.pending[key] = append(m.pending[key], ch)
-	return
-}
-
-func (m *CacheManager) removePendings(key string) []resultChan {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	pendings := m.pending[key]
-	delete(m.pending, key)
-	return pendings
+	return val.(Cacheable), nil
 }
 
 func (m *CacheManager) getFromCache(key string) ([]byte, error) {
