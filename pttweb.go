@@ -19,6 +19,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 
 	"google.golang.org/grpc"
@@ -145,28 +147,63 @@ func main() {
 	if len(config.Bind) == 0 {
 		log.Fatal("No bind addresses specified in config")
 	}
+
+	var servers []*http.Server
+	var unixSockets []string
+
 	for _, addr := range config.Bind {
 		part := strings.SplitN(addr, ":", 2)
 		if len(part) != 2 {
 			log.Fatal("Invalid bind address: ", addr)
 		}
-		if listener, err := net.Listen(part[0], part[1]); err != nil {
+		listener, err := net.Listen(part[0], part[1])
+		if err != nil {
 			log.Fatal("Listen failed for address: ", addr, " error: ", err)
-		} else {
-			if part[0] == "unix" {
-				os.Chmod(part[1], 0777)
-				// Ignores errors, we can't do anything to those.
-			}
-			svr := &http.Server{
-				MaxHeaderBytes: 64 * 1024,
-			}
-			go svr.Serve(listener)
 		}
+		if part[0] == "unix" {
+			os.Chmod(part[1], 0777)
+			unixSockets = append(unixSockets, part[1])
+		}
+		svr := &http.Server{
+			Handler:           router,
+			MaxHeaderBytes:    64 * 1024,
+			ReadTimeout:       time.Second * 30,
+			ReadHeaderTimeout: time.Second * 10,
+			WriteTimeout:      time.Second * 60,
+			IdleTimeout:       time.Minute * 2,
+		}
+		servers = append(servers, svr)
+		go func(s *http.Server, l net.Listener) {
+			if err := s.Serve(l); err != nil && err != http.ErrServerClosed {
+				log.Println("Server error:", err)
+			}
+		}(svr, listener)
 	}
 
-	progExit := make(chan os.Signal)
-	signal.Notify(progExit, os.Interrupt)
+	progExit := make(chan os.Signal, 1)
+	signal.Notify(progExit, os.Interrupt, syscall.SIGTERM)
 	<-progExit
+
+	log.Println("Shutting down servers...")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	for _, svr := range servers {
+		wg.Add(1)
+		go func(s *http.Server) {
+			defer wg.Done()
+			if err := s.Shutdown(ctx); err != nil {
+				log.Println("Server shutdown error:", err)
+			}
+		}(svr)
+	}
+	wg.Wait()
+
+	for _, sock := range unixSockets {
+		os.Remove(sock)
+	}
+	log.Println("Servers stopped.")
 }
 
 func ReplaceVars(p string) string {
