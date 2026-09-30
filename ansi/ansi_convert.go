@@ -29,6 +29,14 @@ func (a *AnsiParser) ConvertFromUTF8(input []byte) error {
 			i++
 			continue
 		}
+		if r == '\n' {
+			s = Default
+			buf = buf[0:0]
+			esc.Reset()
+			a.Rune(r)
+			i += sz
+			continue
+		}
 		switch s {
 		case Default:
 			switch r {
