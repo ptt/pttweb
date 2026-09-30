@@ -234,8 +234,7 @@ func getArticleSnippet(ctx context.Context, brd pttbbs.Board, filename string) (
 }
 
 const (
-	TruncateSize    = 1048576
-	TruncateMaxScan = 1024
+	TruncateSize = 1048576
 
 	HeadSize = 100 * 1024
 	TailSize = 50 * 1024
@@ -376,16 +375,4 @@ func generateArticlePart(key cache.Key) (cache.Cacheable, error) {
 	}
 
 	return ap, nil
-}
-
-func truncateLargeContent(content []byte, size, maxScan int) []byte {
-	if len(content) <= size {
-		return content
-	}
-	for i := size - 1; i >= size-maxScan && i >= 0; i-- {
-		if content[i] == '\n' {
-			return content[:i+1]
-		}
-	}
-	return content[:size]
 }
